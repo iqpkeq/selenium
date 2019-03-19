@@ -17,34 +17,31 @@
 
 package org.openqa.grid.internal.utils;
 
-import com.google.common.io.CharStreams;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.openqa.selenium.json.Json.MAP_TYPE;
+import static org.openqa.selenium.remote.http.HttpMethod.GET;
+import static org.openqa.selenium.remote.http.HttpMethod.POST;
 
-import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.HttpClient;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.message.BasicHttpEntityEnclosingRequest;
-import org.apache.http.message.BasicHttpRequest;
 import org.openqa.grid.common.RegistrationRequest;
 import org.openqa.grid.common.exception.GridConfigurationException;
 import org.openqa.grid.common.exception.GridException;
 import org.openqa.grid.internal.utils.configuration.GridHubConfiguration;
 import org.openqa.grid.internal.utils.configuration.GridNodeConfiguration;
 import org.openqa.grid.shared.GridNodeServer;
-import org.openqa.grid.web.servlet.DisplayHelpServlet;
+import org.openqa.grid.web.servlet.NodeW3CStatusServlet;
 import org.openqa.grid.web.servlet.ResourceServlet;
 import org.openqa.grid.web.utils.ExtraServletUtil;
 import org.openqa.selenium.Platform;
+import org.openqa.selenium.json.Json;
+import org.openqa.selenium.json.JsonInput;
 import org.openqa.selenium.remote.DesiredCapabilities;
-import org.openqa.selenium.remote.internal.HttpClientFactory;
+import org.openqa.selenium.remote.http.HttpClient;
+import org.openqa.selenium.remote.http.HttpRequest;
+import org.openqa.selenium.remote.http.HttpResponse;
 import org.openqa.selenium.remote.server.log.LoggingManager;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.Reader;
+import java.io.StringReader;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.InvalidParameterException;
@@ -61,42 +58,34 @@ public class SelfRegisteringRemote {
 
   private final RegistrationRequest registrationRequest;
 
-  private final HttpClientFactory httpClientFactory;
+  private final HttpClient.Factory httpClientFactory;
 
   private final Map<String, Class<? extends Servlet>> nodeServlets;
 
   private boolean hasId;
 
+  private boolean timeoutFetchedFromHub;
+
+  private boolean browserTimeoutFetchedFromHub;
+
+  public SelfRegisteringRemote(GridNodeConfiguration configuration) {
+    this(RegistrationRequest.build(configuration, null, null));
+  }
+
   public SelfRegisteringRemote(RegistrationRequest request) {
     this.registrationRequest = request;
-    this.httpClientFactory = new HttpClientFactory();
+    this.httpClientFactory = HttpClient.Factory.createDefault();
     this.nodeServlets = new HashMap<>();
 
     registrationRequest.validate();
 
-    try {
-      GridHubConfiguration hubConfiguration = getHubConfiguration();
-      // the node can not set these values. They must come from the hub
-      if (hubConfiguration.timeout != null && hubConfiguration.timeout >= 0) {
-        registrationRequest.getConfiguration().timeout = hubConfiguration.timeout;
-      }
-      if (hubConfiguration.browserTimeout != null && hubConfiguration.browserTimeout >= 0) {
-        registrationRequest.getConfiguration().browserTimeout = hubConfiguration.browserTimeout;
-      }
-    } catch (Exception e) {
-      LOG.warning(
-        "error getting the parameters from the hub. The node may end up with wrong timeouts." + e
-          .getMessage());
-    }
+    // add the status servlet
+    nodeServlets.put("/status", NodeW3CStatusServlet.class);
+    nodeServlets.put("/wd/hub/status", NodeW3CStatusServlet.class);
 
     // add the resource servlet for nodes
     if (!registrationRequest.getConfiguration().isWithOutServlet(ResourceServlet.class)) {
       nodeServlets.put("/resources/*", ResourceServlet.class);
-    }
-
-    // add the display help servlet for nodes
-    if (!registrationRequest.getConfiguration().isWithOutServlet(DisplayHelpServlet.class)) {
-      nodeServlets.put("/*", DisplayHelpServlet.class);
     }
 
     // add the user supplied servlet(s) for nodes
@@ -122,12 +111,12 @@ public class SelfRegisteringRemote {
     this.server = server;
   }
 
-  public void startRemoteServer() throws Exception {
+  public boolean startRemoteServer() {
     if (server == null) {
       throw new GridConfigurationException("no server set to register to the hub");
     }
     server.setExtraServlets(nodeServlets);
-    server.boot();
+    return server.boot();
   }
 
   public void stopRemoteServer() {
@@ -144,7 +133,7 @@ public class SelfRegisteringRemote {
    * Adding the browser described by the capability, automatically finding out what platform the
    * node is launched from
    *
-   * @param cap describing the browser
+   * @param cap       describing the browser
    * @param instances number of times this browser can be started on the node.
    */
   public void addBrowser(DesiredCapabilities cap, int instances) {
@@ -157,6 +146,7 @@ public class SelfRegisteringRemote {
     }
     cap.setCapability(RegistrationRequest.MAX_INSTANCES, instances);
     registrationRequest.getConfiguration().capabilities.add(cap);
+    registrationRequest.getConfiguration().fixUpCapabilities();
   }
 
   /**
@@ -175,8 +165,14 @@ public class SelfRegisteringRemote {
    * - register again every X ms is specified in the config of the node.
    */
   public void startRegistrationProcess() {
+    // don't advertise that the remote (node) is bound to all IPv4 interfaces (default behavior)
+    if (registrationRequest.getConfiguration().host.equals("0.0.0.0")) {
+      // remove the value and call fixUpHost to determine the address of a public (non-loopback) IPv4 interface
+      registrationRequest.getConfiguration().host = null;
+      registrationRequest.getConfiguration().fixUpHost();
+    }
     fixUpId();
-    LOG.fine("Using the json request : " + registrationRequest.toJson());
+    LOG.fine("Using the json request : " + new Json().toJson(registrationRequest));
 
     Boolean register = registrationRequest.getConfiguration().register;
     if (register == null) {
@@ -186,36 +182,39 @@ public class SelfRegisteringRemote {
     if (!register) {
       LOG.info("No registration sent ( register = false )");
     } else {
-      final int registerCycleInterval = registrationRequest.getConfiguration().registerCycle != null ?
-                                        registrationRequest.getConfiguration().registerCycle : 0;
+      final int
+          registerCycleInterval =
+          registrationRequest.getConfiguration().registerCycle != null ?
+          registrationRequest.getConfiguration().registerCycle : 0;
       if (registerCycleInterval > 0) {
         new Thread(new Runnable() { // Thread safety reviewed
 
-              public void run() {
-                boolean first = true;
-                LOG.info("Starting auto registration thread. Will try to register every "
-                         + registerCycleInterval + " ms.");
-                while (true) {
-                  try {
-                    boolean checkForPresence = true;
-                    if (first) {
-                      first = false;
-                      checkForPresence = false;
-                    }
-                    registerToHub(checkForPresence);
-                  } catch (GridException e) {
-                    LOG.info("Couldn't register this node: " + e.getMessage());
-                  }
-                  try {
-                    Thread.sleep(registerCycleInterval);
-                  } catch (InterruptedException e) {
-                    e.printStackTrace();
-                  }
-                  // While we wait for someone to rewrite server logging.
-                  LoggingManager.perSessionLogHandler().clearThreadTempLogs();
+          @Override
+          public void run() {
+            boolean first = true;
+            LOG.info("Starting auto registration thread. Will try to register every "
+                     + registerCycleInterval + " ms.");
+            while (true) {
+              try {
+                boolean checkForPresence = true;
+                if (first) {
+                  first = false;
+                  checkForPresence = false;
                 }
+                registerToHub(checkForPresence);
+              } catch (GridException e) {
+                LOG.info("Couldn't register this node: " + e.getMessage());
               }
-            }).start();
+              try {
+                Thread.sleep(registerCycleInterval);
+              } catch (InterruptedException e) {
+                e.printStackTrace();
+              }
+              // While we wait for someone to rewrite server logging.
+              LoggingManager.perSessionLogHandler().clearThreadTempLogs();
+            }
+          }
+        }).start();
       } else {
         registerToHub(false);
       }
@@ -246,40 +245,71 @@ public class SelfRegisteringRemote {
   /**
    * @return the list of {@link Servlet}s that this remote will bind
    */
-  protected Map<String, Class <? extends Servlet>> getNodeServlets() {
+  protected Map<String, Class<? extends Servlet>> getNodeServlets() {
     return nodeServlets;
   }
 
   private void registerToHub(boolean checkPresenceFirst) {
     if (!checkPresenceFirst || !isAlreadyRegistered(registrationRequest)) {
       String tmp =
-        "http://" + registrationRequest.getConfiguration().getHubHost() + ":"
-        + registrationRequest.getConfiguration().getHubPort() + "/grid/register";
+          "http://" + registrationRequest.getConfiguration().getHubHost() + ":"
+          + registrationRequest.getConfiguration().getHubPort() + "/grid/register";
 
-      HttpClient client = httpClientFactory.getHttpClient();
+      // browserTimeout and timeout are always fetched from the hub. Nodes don't have default values.
+      // If a node has browserTimeout or timeout configured, those will have precedence over the hub.
+      LOG.fine(
+          "Fetching browserTimeout and timeout values from the hub before sending registration request");
+      try {
+        GridHubConfiguration hubConfiguration = getHubConfiguration();
+        LOG.fine("Hub configuration: " + new Json().toJson(hubConfiguration));
+        if (hubConfiguration.timeout == null || hubConfiguration.browserTimeout == null) {
+          throw new GridException("Hub browserTimeout or timeout (or both) are null");
+        }
+        if (registrationRequest.getConfiguration().timeout == null) {
+          registrationRequest.getConfiguration().timeout = hubConfiguration.timeout;
+          timeoutFetchedFromHub = true;
+        }
+        if (registrationRequest.getConfiguration().browserTimeout == null) {
+          registrationRequest.getConfiguration().browserTimeout = hubConfiguration.browserTimeout;
+          browserTimeoutFetchedFromHub = true;
+        }
+
+        // The hub restarts and changes its configuration, the node fetches and updates its own again.
+        // Only if it was previously fetched from the hub.
+        if (timeoutFetchedFromHub) {
+          registrationRequest.getConfiguration().timeout = hubConfiguration.timeout;
+        }
+        if (browserTimeoutFetchedFromHub) {
+          registrationRequest.getConfiguration().browserTimeout = hubConfiguration.browserTimeout;
+        }
+
+        LOG.fine("Updated node configuration: " + new Json()
+            .toJson(registrationRequest.getConfiguration()));
+      } catch (Exception e) {
+        LOG.warning(
+            "Error getting the parameters from the hub. The node may end up with wrong timeouts." +
+            e.getMessage());
+      }
+
       try {
         URL registration = new URL(tmp);
         LOG.info("Registering the node to the hub: " + registration);
 
-        BasicHttpEntityEnclosingRequest r =
-            new BasicHttpEntityEnclosingRequest("POST", registration.toExternalForm());
+        HttpRequest request = new HttpRequest(POST, registration.toExternalForm());
         updateConfigWithRealPort();
-        String json = registrationRequest.toJson().toString();
-        r.setEntity(new StringEntity(json,"UTF-8"));
+        String json = new Json().toJson(registrationRequest);
+        request.setContent(json.getBytes(UTF_8));
 
-        HttpHost host = new HttpHost(registration.getHost(), registration.getPort());
-        HttpResponse response = client.execute(host, r);
-        if (response.getStatusLine().getStatusCode() != 200) {
-          throw new GridException(String.format("The hub responded with %s:%s",
-                                                response.getStatusLine().getStatusCode(),
-                                                response.getStatusLine().getReasonPhrase()));
+        HttpClient client = httpClientFactory.createClient(registration);
+        HttpResponse response = client.execute(request);
+        if (response.getStatus() != 200) {
+          throw new GridException(String.format("The hub responded with %s", response.getStatus()));
         }
+
         LOG.info("The node is registered to the hub and ready to use");
       } catch (Exception e) {
         throw new GridException("Error sending the registration request: " + e.getMessage());
       }
-    } else {
-      LOG.fine("The node is already present on the hub. Skipping registration.");
     }
 
   }
@@ -306,15 +336,15 @@ public class SelfRegisteringRemote {
 
     // make sure 'id' has a value.
     if (registrationRequest.getConfiguration().id == null || registrationRequest
-      .getConfiguration().id.isEmpty()) {
+        .getConfiguration().id.isEmpty()) {
       registrationRequest.getConfiguration().id =
-        registrationRequest.getConfiguration().getRemoteHost();
+          registrationRequest.getConfiguration().getRemoteHost();
     }
 
     hasId = true;
   }
 
-  void updateConfigWithRealPort() throws MalformedURLException {
+  void updateConfigWithRealPort() {
     if (registrationRequest.getConfiguration().port != 0) {
       return;
     }
@@ -323,60 +353,52 @@ public class SelfRegisteringRemote {
 
   /**
    * uses the hub API to get some of its configuration.
+   *
    * @return json object of the current hub configuration
-   * @throws Exception
    */
   private GridHubConfiguration getHubConfiguration() throws Exception {
     String hubApi =
-      "http://" + registrationRequest.getConfiguration().getHubHost() + ":"
-      + registrationRequest.getConfiguration().getHubPort() + "/grid/api/hub";
-
-    HttpClient client = httpClientFactory.getHttpClient();
+        "http://" + registrationRequest.getConfiguration().getHubHost() + ":"
+        + registrationRequest.getConfiguration().getHubPort() + "/grid/api/hub";
 
     URL api = new URL(hubApi);
-    HttpHost host = new HttpHost(api.getHost(), api.getPort());
+    HttpClient client = httpClientFactory.createClient(api);
     String url = api.toExternalForm();
-    BasicHttpRequest r = new BasicHttpRequest("GET", url);
+    HttpRequest request = new HttpRequest(GET, url);
 
-    HttpResponse response = client.execute(host, r);
-    return GridHubConfiguration.loadFromJSON(extractObject(response));
+    HttpResponse response = client.execute(request);
+    try (Reader reader = new StringReader(response.getContentString());
+         JsonInput jsonInput = new Json().newInput(reader)) {
+      return GridHubConfiguration.loadFromJSON(jsonInput);
+    }
   }
 
   private boolean isAlreadyRegistered(RegistrationRequest node) {
-
-    HttpClient client = httpClientFactory.getHttpClient();
     try {
       String tmp =
           "http://" + node.getConfiguration().getHubHost() + ":"
-              + node.getConfiguration().getHubPort() + "/grid/api/proxy";
+          + node.getConfiguration().getHubPort() + "/grid/api/proxy";
       URL api = new URL(tmp);
-      HttpHost host = new HttpHost(api.getHost(), api.getPort());
+      HttpClient client = httpClientFactory.createClient(api);
 
       String id = node.getConfiguration().id;
       if (id == null) {
         id = node.getConfiguration().getRemoteHost();
       }
-      BasicHttpRequest r = new BasicHttpRequest("GET", api.toExternalForm() + "?id=" + id);
+      HttpRequest request = new HttpRequest(GET, api.toExternalForm() + "?id=" + id);
 
-      HttpResponse response = client.execute(host, r);
-      if (response.getStatusLine().getStatusCode() != 200) {
-        throw new GridException(String.format("The hub responded with %s:%s",
-                                              response.getStatusLine().getStatusCode(),
-                                              response.getStatusLine().getReasonPhrase()));
+      HttpResponse response = client.execute(request);
+      if (response.getStatus() != 200) {
+        throw new GridException(String.format("The hub responded with %s", response.getStatus()));
       }
-      JsonObject o = extractObject(response);
-      return o.get("success").getAsBoolean();
+      Map<String, Object> o = extractObject(response);
+      return (Boolean) o.get("success");
     } catch (Exception e) {
       throw new GridException("The hub is down or not responding: " + e.getMessage());
     }
   }
 
-  private static JsonObject extractObject(HttpResponse resp) throws IOException {
-    try (Reader rd = new BufferedReader(new InputStreamReader(resp.getEntity().getContent()))) {
-      StringBuilder s = new StringBuilder();
-      CharStreams.copy(rd, s);
-      return new JsonParser().parse(s.toString()).getAsJsonObject();
-    }
+  private static Map<String, Object> extractObject(HttpResponse resp) {
+    return new Json().toType(resp.getContentString(), MAP_TYPE);
   }
-
 }

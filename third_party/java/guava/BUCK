@@ -1,10 +1,9 @@
 prebuilt_jar(
-  name = 'guava',
-  maven_coords = 'com.google.guava:guava:jar:21.0',
-  binary_jar = 'guava-21.0.jar',
-  source_jar = 'guava-21.0-sources.jar',
-  visibility = [
-    'PUBLIC',
-  ],
+    name = "guava",
+    maven_coords = "com.google.guava:guava:jar:25.0-jre",
+    binary_jar = "guava-25.0-jre.jar",
+    source_jar = "guava-25.0-jre-sources.jar",
+    visibility = [
+        "PUBLIC",
+    ],
 )
-

@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -17,7 +17,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-require File.expand_path('../../spec_helper', __FILE__)
+require File.expand_path('../spec_helper', __dir__)
 
 module Selenium
   module WebDriver
@@ -92,6 +92,11 @@ module Selenium
         it 'should not contain proxy hash when no proxy settings' do
           capabilities_hash = Capabilities.new.as_json
           expect(capabilities_hash).not_to have_key('proxy')
+        end
+
+        it 'should default to javascript enabled if it is not explicitly defined' do
+          capabilities = Capabilities.new(javascript_enabled: nil)
+          expect(capabilities.javascript_enabled).to eq(true)
         end
 
         it 'can merge capabilities' do

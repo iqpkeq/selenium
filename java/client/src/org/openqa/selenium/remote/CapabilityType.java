@@ -22,7 +22,8 @@ package org.openqa.selenium.remote;
  */
 public interface CapabilityType {
   String BROWSER_NAME = "browserName";
-  String PLATFORM = "platform";
+  @Deprecated String PLATFORM = "platform";
+  String PLATFORM_NAME = "platformName";
   String SUPPORTS_JAVASCRIPT = "javascriptEnabled";
   String TAKES_SCREENSHOT = "takesScreenshot";
   String VERSION = "version";
@@ -46,6 +47,7 @@ public interface CapabilityType {
   String ELEMENT_SCROLL_BEHAVIOR = "elementScrollBehavior";
   String HAS_TOUCHSCREEN = "hasTouchScreen";
   String OVERLAPPING_CHECK_DISABLED = "overlappingCheckDisabled";
+  String STRICT_FILE_INTERACTABILITY = "strictFileInteractability";
 
   String LOGGING_PREFS = "loggingPrefs";
 

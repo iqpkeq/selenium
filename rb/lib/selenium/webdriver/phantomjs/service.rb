@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -26,17 +26,13 @@ module Selenium
 
       class Service < WebDriver::Service
         DEFAULT_PORT = 8910
-        @executable = 'phantomjs'.freeze
-        @missing_text = 'Unable to find phantomjs. Please download from http://phantomjs.org/download.html'.freeze
+        EXECUTABLE = 'phantomjs'
+        MISSING_TEXT = 'Unable to find phantomjs. Please download from http://phantomjs.org/download.html'
 
         private
 
         def start_process
-          server_command = [@executable_path, "--webdriver=#{@port}", *@extra_args]
-          @process = ChildProcess.build(*server_command.compact)
-          WebDriver.logger.debug("Executing Process #{server_command}")
-
-          @process.io.stdout = @process.io.stderr = WebDriver.logger.io
+          @process = build_process(@executable_path, "--webdriver=#{@port}", *@extra_args)
           @process.start
         end
 

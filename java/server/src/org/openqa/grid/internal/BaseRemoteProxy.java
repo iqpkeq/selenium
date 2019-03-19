@@ -18,30 +18,25 @@
 package org.openqa.grid.internal;
 
 import static org.openqa.grid.common.RegistrationRequest.MAX_INSTANCES;
+import static org.openqa.selenium.json.Json.MAP_TYPE;
+import static org.openqa.selenium.remote.http.HttpMethod.GET;
 
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.HttpClient;
-import org.apache.http.message.BasicHttpRequest;
-import org.apache.http.util.EntityUtils;
 import org.openqa.grid.common.RegistrationRequest;
 import org.openqa.grid.common.SeleniumProtocol;
 import org.openqa.grid.common.exception.GridException;
 import org.openqa.grid.internal.listeners.TimeoutListener;
 import org.openqa.grid.internal.utils.CapabilityMatcher;
+import org.openqa.grid.internal.utils.DefaultCapabilityMatcher;
 import org.openqa.grid.internal.utils.DefaultHtmlRenderer;
 import org.openqa.grid.internal.utils.HtmlRenderer;
 import org.openqa.grid.internal.utils.configuration.GridNodeConfiguration;
-import org.openqa.selenium.remote.DesiredCapabilities;
-import org.openqa.selenium.remote.internal.HttpClientFactory;
+import org.openqa.selenium.MutableCapabilities;
+import org.openqa.selenium.json.Json;
+import org.openqa.selenium.remote.http.HttpClient;
+import org.openqa.selenium.remote.http.HttpRequest;
+import org.openqa.selenium.remote.http.HttpResponse;
+import org.openqa.selenium.remote.server.jmx.ManagedAttribute;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.MalformedURLException;
@@ -52,6 +47,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -68,24 +64,28 @@ public class BaseRemoteProxy implements RemoteProxy {
   // list of the type of test the remote can run.
   private final List<TestSlot> testSlots;
 
-  private final Registry registry;
+  private final GridRegistry registry;
 
+  private CapabilityMatcher capabilityMatcher;
 
   private final String id;
 
   private volatile boolean stop = false;
   private CleanUpThread cleanUpThread;
 
+  @Override
   public List<TestSlot> getTestSlots() {
     return testSlots;
   }
 
-  public Registry getRegistry() {
-    return registry;
+  @Override
+  public <T extends GridRegistry> T getRegistry() {
+    return (T) registry;
   }
 
+  @Override
   public CapabilityMatcher getCapabilityHelper() {
-    return registry.getConfiguration().capabilityMatcher;
+    return capabilityMatcher;
   }
 
 
@@ -98,12 +98,16 @@ public class BaseRemoteProxy implements RemoteProxy {
    * @param request  The request
    * @param registry The registry to use
    */
-  public BaseRemoteProxy(RegistrationRequest request, Registry registry) {
+  public BaseRemoteProxy(RegistrationRequest request, GridRegistry registry) {
     this.request = request;
     this.registry = registry;
     this.config = new GridNodeConfiguration();
-    // the registry is the 'hub' configuration, which is used as a seed.
-    this.config.merge(registry.getConfiguration());
+    this.capabilityMatcher = new DefaultCapabilityMatcher();
+    // the registry is the 'hub' configuration, which is used as a seed for this proxy configuration
+    if (registry.getHub() != null) {
+      this.config.merge(registry.getHub().getConfiguration());
+      this.capabilityMatcher = registry.getHub().getConfiguration().capabilityMatcher;
+    }
     // the proxy values must override any that the hub specify where an overlap occurs.
     // merging last causes the values to be overridden.
     this.config.merge(request.getConfiguration());
@@ -136,10 +140,10 @@ public class BaseRemoteProxy implements RemoteProxy {
       this.id = remoteHost.toExternalForm();
     }
 
-    List<DesiredCapabilities> capabilities = request.getConfiguration().capabilities;
+    List<MutableCapabilities> capabilities = request.getConfiguration().capabilities;
 
     List<TestSlot> slots = new ArrayList<>();
-    for (DesiredCapabilities capability : capabilities) {
+    for (MutableCapabilities capability : capabilities) {
       Object maxInstance = capability.getCapability(MAX_INSTANCES);
 
       SeleniumProtocol protocol = SeleniumProtocol.fromCapabilitiesMap(capability.asMap());
@@ -162,6 +166,7 @@ public class BaseRemoteProxy implements RemoteProxy {
     this.testSlots = Collections.unmodifiableList(slots);
   }
 
+  @Override
   public void setupTimeoutListener() {
     cleanUpThread = null;
     if (this instanceof TimeoutListener) {
@@ -174,6 +179,7 @@ public class BaseRemoteProxy implements RemoteProxy {
     }
   }
 
+  @Override
   public String getId() {
     if (id == null) {
       throw new RuntimeException("Bug. Trying to use the id on a proxy but it hasn't been set.");
@@ -182,6 +188,7 @@ public class BaseRemoteProxy implements RemoteProxy {
     return id;
   }
 
+  @Override
   public void teardown() {
     stop = true;
   }
@@ -201,6 +208,7 @@ public class BaseRemoteProxy implements RemoteProxy {
       this.proxy = proxy;
     }
 
+    @Override
     public void run() {
 
       log.fine("cleanup thread starting...");
@@ -259,22 +267,29 @@ public class BaseRemoteProxy implements RemoteProxy {
     }
   }
 
+  @Override
   public GridNodeConfiguration getConfig() {
     return config;
   }
 
+  @Override
   public RegistrationRequest getOriginalRegistrationRequest() {
     return request;
   }
 
+  @Override
+  @ManagedAttribute
   public int getMaxNumberOfConcurrentTestSessions() {
     return config.maxSession;
   }
 
+  @Override
+  @ManagedAttribute
   public URL getRemoteHost() {
     return remoteHost;
   }
 
+  @Override
   public TestSession getNewSession(Map<String, Object> requestedCapability) {
     log.fine("Trying to create a new session on node " + this);
 
@@ -298,6 +313,8 @@ public class BaseRemoteProxy implements RemoteProxy {
     return null;
   }
 
+  @Override
+  @ManagedAttribute
   public int getTotalUsed() {
     int totalUsed = 0;
 
@@ -310,6 +327,12 @@ public class BaseRemoteProxy implements RemoteProxy {
     return totalUsed;
   }
 
+  @ManagedAttribute
+  public int getTotal() {
+    return getTestSlots().size();
+  }
+
+  @Override
   public boolean hasCapability(Map<String, Object> requestedCapability) {
     for (TestSlot slot : getTestSlots()) {
       if (slot.matches(requestedCapability)) {
@@ -320,6 +343,8 @@ public class BaseRemoteProxy implements RemoteProxy {
     return false;
   }
 
+  @Override
+  @ManagedAttribute
   public boolean isBusy() {
     return getTotalUsed() != 0;
   }
@@ -335,7 +360,7 @@ public class BaseRemoteProxy implements RemoteProxy {
    */
   @SuppressWarnings("unchecked")
   public static <T extends RemoteProxy> T getNewInstance(
-      RegistrationRequest request, Registry registry) {
+      RegistrationRequest request, GridRegistry registry) {
     try {
       String proxyClass = request.getConfiguration().proxy;
       if (proxyClass == null) {
@@ -345,7 +370,7 @@ public class BaseRemoteProxy implements RemoteProxy {
       Class<?> clazz = Class.forName(proxyClass);
       log.fine("Using class " + clazz.getName());
       Object[] args = new Object[]{request, registry};
-      Class<?>[] argsClass = new Class[]{RegistrationRequest.class, Registry.class};
+      Class<?>[] argsClass = new Class[]{RegistrationRequest.class, GridRegistry.class};
       Constructor<?> c = clazz.getConstructor(argsClass);
       Object proxy = c.newInstance(args);
       if (proxy instanceof RemoteProxy) {
@@ -395,6 +420,7 @@ public class BaseRemoteProxy implements RemoteProxy {
   }
 
   // less busy to more busy.
+  @Override
   public int compareTo(RemoteProxy o) {
     if (o == null) {
       return -1;
@@ -409,51 +435,55 @@ public class BaseRemoteProxy implements RemoteProxy {
 
   private final HtmlRenderer renderer = new DefaultHtmlRenderer(this);
 
+  @Override
   public HtmlRenderer getHtmlRender() {
     return renderer;
   }
 
+  @Override
   public int getTimeOut() {
     return config.timeout * 1000;
   }
 
-
-  public HttpClientFactory getHttpClientFactory() {
-    return getRegistry().getHttpClientFactory();
+  /**
+   * @return the {@link HttpClient.Factory} to use.
+   * @deprecated use {@link BaseRemoteProxy#getHttpClient(URL, int, int)}
+   */
+  @Override
+  public HttpClient getHttpClient(URL url) {
+    return getRegistry().getHttpClient(url);
   }
 
-  /**
-   * @throws GridException If the node if down or doesn't recognize the /wd/hub/status request.
-   */
-  public JsonObject getStatus() throws GridException {
+  @Override
+  public HttpClient getHttpClient(URL url, int connectionTimeout, int readTimeout) {
+    return getRegistry().getHttpClient(url, connectionTimeout, readTimeout);
+  }
+
+  @Override
+  public Map<String, Object> getProxyStatus() {
     String url = getRemoteHost().toExternalForm() + "/wd/hub/status";
-    BasicHttpRequest r = new BasicHttpRequest("GET", url);
-    HttpClient client = getHttpClientFactory().getGridHttpClient(config.nodeStatusCheckTimeout, config.nodeStatusCheckTimeout);
-    HttpHost host = new HttpHost(getRemoteHost().getHost(), getRemoteHost().getPort(), getRemoteHost().getProtocol());
+
+    HttpRequest r = new HttpRequest(GET, url);
+    HttpClient client = getHttpClient(getRemoteHost(), config.nodeStatusCheckTimeout,
+                                      config.nodeStatusCheckTimeout);
     HttpResponse response;
     String existingName = Thread.currentThread().getName();
-    HttpEntity entity = null;
     try {
       Thread.currentThread().setName("Probing status of " + url);
-      response = client.execute(host, r);
-      entity = response.getEntity();
-      int code = response.getStatusLine().getStatusCode();
+      response = client.execute(r);
+      int code = response.getStatus();
 
       if (code == 200) {
-        JsonObject status = new JsonObject();
+        Map<String, Object> status = new TreeMap<>();
         try {
-          status = extractObject(response);
+          status = new Json().toType(response.getContentString(), MAP_TYPE);
         } catch (Exception e) {
           // ignored due it's not required from node to return anything. Just 200 code is enough.
         }
-        EntityUtils.consume(response.getEntity());
         return status;
       } else if (code == 404) { // selenium RC case
-        JsonObject status = new JsonObject();
-        EntityUtils.consume(response.getEntity());
-        return status;
+        return new TreeMap<>();
       } else {
-        EntityUtils.consume(response.getEntity());
         throw new GridException("server response code : " + code);
       }
 
@@ -461,33 +491,17 @@ public class BaseRemoteProxy implements RemoteProxy {
       throw new GridException(e.getMessage(), e);
     } finally {
       Thread.currentThread().setName(existingName);
-      try { //Added by jojo to release connection thoroughly
-          EntityUtils.consume(entity);
-          } catch (IOException e) {
-            log.info("Exception thrown when consume entity");
-          }
-
     }
   }
 
-  private JsonObject extractObject(HttpResponse resp) throws IOException {
-    BufferedReader rd = new BufferedReader(new InputStreamReader(resp.getEntity().getContent()));
-    StringBuilder s = new StringBuilder();
-    String line;
-
-    while ((line = rd.readLine()) != null) {
-      s.append(line);
-    }
-    rd.close();
-
-    return new JsonParser().parse(s.toString()).getAsJsonObject();
-  }
-
-
+  @Override
+  @ManagedAttribute
   public float getResourceUsageInPercent() {
     return 100 * (float)getTotalUsed() / (float)getMaxNumberOfConcurrentTestSessions();
   }
 
+  @Override
+  @ManagedAttribute
   public long getLastSessionStart() {
     long last = -1;
     for (TestSlot slot : getTestSlots()) {

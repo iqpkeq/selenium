@@ -21,8 +21,8 @@ import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 
 import org.openqa.selenium.WebElement;
-import org.openqa.selenium.internal.Locatable;
-import org.openqa.selenium.internal.WrapsElement;
+import org.openqa.selenium.WrapsElement;
+import org.openqa.selenium.interactions.Locatable;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
@@ -54,6 +54,7 @@ public class KnownElements {
 
   private WebElement proxyElement(final WebElement element, final String id) {
     InvocationHandler handler = new InvocationHandler() {
+      @Override
       public Object invoke(Object object, Method method, Object[] objects) throws Throwable {
         if ("getId".equals(method.getName())) {
           return id;

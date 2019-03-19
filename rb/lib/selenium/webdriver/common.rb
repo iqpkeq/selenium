@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -17,7 +17,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-require 'selenium/webdriver/common/w3c_error'
 require 'selenium/webdriver/common/error'
 require 'selenium/webdriver/common/platform'
 require 'selenium/webdriver/common/proxy'
@@ -53,12 +52,17 @@ require 'selenium/webdriver/common/html5/session_storage'
 require 'selenium/webdriver/common/driver_extensions/takes_screenshot'
 require 'selenium/webdriver/common/driver_extensions/rotatable'
 require 'selenium/webdriver/common/driver_extensions/has_web_storage'
+require 'selenium/webdriver/common/driver_extensions/downloads_files'
 require 'selenium/webdriver/common/driver_extensions/has_location'
 require 'selenium/webdriver/common/driver_extensions/has_session_id'
 require 'selenium/webdriver/common/driver_extensions/has_touch_screen'
 require 'selenium/webdriver/common/driver_extensions/has_remote_status'
+require 'selenium/webdriver/common/driver_extensions/has_network_conditions'
 require 'selenium/webdriver/common/driver_extensions/has_network_connection'
+require 'selenium/webdriver/common/driver_extensions/has_permissions'
+require 'selenium/webdriver/common/driver_extensions/has_debugger'
 require 'selenium/webdriver/common/driver_extensions/uploads_files'
+require 'selenium/webdriver/common/driver_extensions/has_addons'
 require 'selenium/webdriver/common/interactions/interactions'
 require 'selenium/webdriver/common/interactions/input_device'
 require 'selenium/webdriver/common/interactions/interaction'

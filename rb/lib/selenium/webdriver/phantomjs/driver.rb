@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -30,6 +30,8 @@ module Selenium
         include DriverExtensions::TakesScreenshot
 
         def initialize(opts = {})
+          WebDriver.logger.deprecate 'Selenium support for PhantomJS', 'headless Chrome/Firefox or HTMLUnit'
+
           opts[:desired_capabilities] ||= Remote::Capabilities.phantomjs
 
           unless opts.key?(:url)
@@ -61,7 +63,7 @@ module Selenium
         def quit
           super
         ensure
-          @service.stop if @service
+          @service&.stop
         end
 
       end # Bridge

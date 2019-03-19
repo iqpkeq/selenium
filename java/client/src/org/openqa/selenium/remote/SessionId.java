@@ -17,12 +17,19 @@
 
 package org.openqa.selenium.remote;
 
+import java.util.Objects;
+import java.util.UUID;
+
 public class SessionId {
 
   private final String opaqueKey;
 
+  public SessionId(UUID uuid) {
+    this(Objects.requireNonNull(uuid, "Session ID key has not been set.").toString());
+  }
+
   public SessionId(String opaqueKey) {
-    this.opaqueKey = opaqueKey;
+    this.opaqueKey = Objects.requireNonNull(opaqueKey, "Session ID key has not been set.");
   }
 
   @Override
@@ -37,9 +44,6 @@ public class SessionId {
 
   @Override
   public boolean equals(Object obj) {
-    if (obj instanceof SessionId) {
-      return opaqueKey.equals(((SessionId) obj).opaqueKey);
-    }
-    return false;
+    return obj instanceof SessionId && opaqueKey.equals(((SessionId) obj).opaqueKey);
   }
 }

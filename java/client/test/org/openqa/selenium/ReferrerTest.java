@@ -18,23 +18,22 @@
 package org.openqa.selenium;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.junit.Assert.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.openqa.selenium.remote.CapabilityType.PROXY;
 import static org.openqa.selenium.support.ui.ExpectedConditions.presenceOfElementLocated;
 import static org.openqa.selenium.support.ui.ExpectedConditions.titleIs;
-import static org.openqa.selenium.testing.Driver.FIREFOX;
-import static org.openqa.selenium.testing.Driver.IE;
-import static org.openqa.selenium.testing.Driver.MARIONETTE;
-import static org.openqa.selenium.testing.Driver.PHANTOMJS;
-import static org.openqa.selenium.testing.Driver.SAFARI;
-import static org.openqa.selenium.testing.InProject.locate;
+import static org.openqa.selenium.testing.drivers.Browser.CHROME;
+import static org.openqa.selenium.testing.drivers.Browser.EDGE;
+import static org.openqa.selenium.testing.drivers.Browser.FIREFOX;
+import static org.openqa.selenium.testing.drivers.Browser.IE;
+import static org.openqa.selenium.testing.drivers.Browser.MARIONETTE;
+import static org.openqa.selenium.testing.drivers.Browser.SAFARI;
+import static org.openqa.selenium.build.InProject.locate;
 
-import com.google.common.base.Charsets;
 import com.google.common.base.Joiner;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 import com.google.common.net.HostAndPort;
 import com.google.common.net.HttpHeaders;
 
@@ -42,13 +41,14 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExternalResource;
+import org.openqa.selenium.environment.webserver.JettyAppServer;
 import org.openqa.selenium.net.PortProber;
 import org.openqa.selenium.net.UrlChecker;
-import org.openqa.selenium.remote.DesiredCapabilities;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.openqa.selenium.testing.Ignore;
 import org.openqa.selenium.testing.JUnit4TestBase;
 import org.openqa.selenium.testing.NeedsLocalEnvironment;
+import org.openqa.selenium.testing.NotYetImplemented;
 import org.openqa.selenium.testing.drivers.WebDriverBuilder;
 import org.seleniumhq.jetty9.server.Handler;
 import org.seleniumhq.jetty9.server.Request;
@@ -62,6 +62,7 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
 import javax.servlet.ServletException;
@@ -92,7 +93,6 @@ import javax.servlet.http.HttpServletResponse;
  * <p>Note: depending on the condition under test, the various pages may or may
  * not be served by the same server.
  */
-@Ignore(PHANTOMJS)
 @Ignore(SAFARI)
 public class ReferrerTest extends JUnit4TestBase {
 
@@ -118,6 +118,7 @@ public class ReferrerTest extends JUnit4TestBase {
    * does not have a proxy configured.
    */
   @Test
+  @NotYetImplemented(EDGE)
   @NeedsLocalEnvironment
   public void basicHistoryNavigationWithoutAProxy() {
     testServer1.start();
@@ -128,18 +129,17 @@ public class ReferrerTest extends JUnit4TestBase {
 
     performNavigation(driver, page1Url);
 
-    assertEquals(
-        ImmutableList.of(
-            new HttpRequest(page1Url, null),
-            new HttpRequest(page2Url, page1Url),
-            new HttpRequest(page3Url, page2Url)),
-        testServer1.getRequests());
+    assertThat(testServer1.getRequests()).isEqualTo(ImmutableList.of(
+        new HttpRequest(page1Url, null),
+        new HttpRequest(page2Url, page1Url),
+        new HttpRequest(page3Url, page2Url)));
   }
 
   /**
    * Tests navigation across multiple domains when the browser does not have a proxy configured.
    */
   @Test
+  @NotYetImplemented(EDGE)
   @NeedsLocalEnvironment
   public void crossDomainHistoryNavigationWithoutAProxy() {
 
@@ -152,17 +152,13 @@ public class ReferrerTest extends JUnit4TestBase {
 
     performNavigation(driver, page1Url);
 
-    assertEquals(
-        ImmutableList.of(
-            new HttpRequest(page1Url, null),
-            new HttpRequest(page3Url, page2Url)),
-        testServer1.getRequests());
+    assertThat(testServer1.getRequests()).isEqualTo(ImmutableList.of(
+        new HttpRequest(page1Url, null),
+        new HttpRequest(page3Url, page2Url)));
 
-    assertEquals(
-        ImmutableList.of(new HttpRequest(
-            page2Url,
-            page1Url)),
-        testServer2.getRequests());
+    assertThat(testServer2.getRequests()).isEqualTo(ImmutableList.of(new HttpRequest(
+        page2Url,
+        page1Url)));
   }
 
   /**
@@ -170,6 +166,7 @@ public class ReferrerTest extends JUnit4TestBase {
    * configured to use a proxy that permits direct access to that domain.
    */
   @Test
+  @Ignore(EDGE)
   @NeedsLocalEnvironment
   public void basicHistoryNavigationWithADirectProxy() {
     testServer1.start();
@@ -185,12 +182,10 @@ public class ReferrerTest extends JUnit4TestBase {
 
     performNavigation(driver, page1Url);
 
-    assertEquals(
-        ImmutableList.of(
-            new HttpRequest(page1Url, null),
-            new HttpRequest(page2Url, page1Url),
-            new HttpRequest(page3Url, page2Url)),
-        testServer1.getRequests());
+    assertThat(testServer1.getRequests()).isEqualTo(ImmutableList.of(
+        new HttpRequest(page1Url, null),
+        new HttpRequest(page2Url, page1Url),
+        new HttpRequest(page3Url, page2Url)));
   }
 
   /**
@@ -198,6 +193,7 @@ public class ReferrerTest extends JUnit4TestBase {
    * permits direct access to those domains.
    */
   @Test
+  @Ignore(EDGE)
   @NeedsLocalEnvironment
   public void crossDomainHistoryNavigationWithADirectProxy() {
     testServer1.start();
@@ -214,17 +210,13 @@ public class ReferrerTest extends JUnit4TestBase {
 
     performNavigation(driver, page1Url);
 
-    assertEquals(
-        ImmutableList.of(
-            new HttpRequest(page1Url, null),
-            new HttpRequest(page3Url, page2Url)),
-        testServer1.getRequests());
+    assertThat(testServer1.getRequests()).isEqualTo(ImmutableList.of(
+        new HttpRequest(page1Url, null),
+        new HttpRequest(page3Url, page2Url)));
 
-    assertEquals(
-        ImmutableList.of(new HttpRequest(
-            page2Url,
-            page1Url)),
-        testServer2.getRequests());
+    assertThat(testServer2.getRequests()).isEqualTo(ImmutableList.of(new HttpRequest(
+        page2Url,
+        page1Url)));
   }
 
   /**
@@ -232,7 +224,7 @@ public class ReferrerTest extends JUnit4TestBase {
    * redirects the second domain to another host.
    */
   @Test
-  @Ignore(MARIONETTE)
+  @Ignore(EDGE)
   @NeedsLocalEnvironment
   public void crossDomainHistoryNavigationWithAProxiedHost() {
     testServer1.start();
@@ -254,16 +246,12 @@ public class ReferrerTest extends JUnit4TestBase {
 
     performNavigation(driver, page1Url);
 
-    assertEquals(
-        ImmutableList.of(
-            new HttpRequest(page1Url, null),
-            new HttpRequest(page3Url, page2Url)),
-        testServer1.getRequests());
+    assertThat(testServer1.getRequests()).isEqualTo(ImmutableList.of(
+        new HttpRequest(page1Url, null),
+        new HttpRequest(page3Url, page2Url)));
 
-    assertEquals(
-        ImmutableList.of(
-            new HttpRequest(page2Url, page1Url)),
-        testServer2.getRequests());
+    assertThat(testServer2.getRequests()).isEqualTo(ImmutableList.of(
+        new HttpRequest(page2Url, page1Url)));
   }
 
   /**
@@ -272,7 +260,7 @@ public class ReferrerTest extends JUnit4TestBase {
    * to connect directly to the target server.
    */
   @Test
-  @Ignore(MARIONETTE)
+  @Ignore(EDGE)
   @NeedsLocalEnvironment
   public void crossDomainHistoryNavigationWhenProxyInterceptsHostRequests() {
     testServer1.start();
@@ -292,16 +280,12 @@ public class ReferrerTest extends JUnit4TestBase {
     WebDriver driver = customDriverFactory.createDriver(proxyServer.getPacUrl());
     performNavigation(driver, page1Url);
 
-    assertEquals(
-        ImmutableList.of(
-            new HttpRequest(page1Url, null),
-            new HttpRequest(page3Url, page2Url)),
-        testServer1.getRequests());
+    assertThat(testServer1.getRequests()).isEqualTo(ImmutableList.of(
+        new HttpRequest(page1Url, null),
+        new HttpRequest(page3Url, page2Url)));
 
-    assertEquals(
-        ImmutableList.of(
-            new HttpRequest(page2Url, page1Url)),
-        proxyServer.getRequests());
+    assertThat(proxyServer.getRequests()).isEqualTo(ImmutableList.of(
+        new HttpRequest(page2Url, page1Url)));
   }
 
   /**
@@ -314,6 +298,8 @@ public class ReferrerTest extends JUnit4TestBase {
   @Ignore(MARIONETTE)
   @Ignore(value = FIREFOX, travis=true)
   @NeedsLocalEnvironment
+  @NotYetImplemented(CHROME)
+  @Ignore(EDGE)
   public void navigationWhenProxyInterceptsASpecificUrl() {
     testServer1.start();
     proxyServer.start();
@@ -334,17 +320,13 @@ public class ReferrerTest extends JUnit4TestBase {
     WebDriver driver = customDriverFactory.createDriver(proxyServer.getPacUrl());
     performNavigation(driver, page1Url);
 
-    assertEquals(
-        ImmutableList.of(
-            new HttpRequest(page1Url, null),
-            new HttpRequest(page3Url, page2Url)),
-        testServer1.getRequests());
+    assertThat(testServer1.getRequests()).isEqualTo(ImmutableList.of(
+        new HttpRequest(page1Url, null),
+        new HttpRequest(page3Url, page2Url)));
 
-    assertEquals(
-        ImmutableList.of(new HttpRequest(
-            page2Url,
-            page1Url)),
-        proxyServer.getRequests());
+    assertThat(proxyServer.getRequests()).isEqualTo(ImmutableList.of(new HttpRequest(
+        page2Url,
+        page1Url)));
   }
 
   private void performNavigation(WebDriver driver, String firstUrl) {
@@ -392,7 +374,7 @@ public class ReferrerTest extends JUnit4TestBase {
 
   private static String encode(String url) {
     try {
-      return URLEncoder.encode(url, Charsets.UTF_8.name());
+      return URLEncoder.encode(url, UTF_8.name());
     } catch (UnsupportedEncodingException e) {
       throw new RuntimeException("UTF-8 should always be supported!", e);
     }
@@ -409,10 +391,9 @@ public class ReferrerTest extends JUnit4TestBase {
       Proxy proxy = new Proxy();
       proxy.setProxyAutoconfigUrl(pacUrl);
 
-      DesiredCapabilities caps = new DesiredCapabilities();
-      caps.setCapability(PROXY, proxy);
+      Capabilities caps = new ImmutableCapabilities(PROXY, proxy);
 
-      return driver = new WebDriverBuilder().setDesiredCapabilities(caps).get();
+      return driver = new WebDriverBuilder().get(caps);
     }
 
     @Override
@@ -440,7 +421,8 @@ public class ReferrerTest extends JUnit4TestBase {
       http.setIdleTimeout(500000);
 
       this.server.addConnector(http);
-      this.hostAndPort = HostAndPort.fromParts("localhost", port);
+
+      this.hostAndPort = HostAndPort.fromParts(JettyAppServer.detectHostname(), port);
     }
 
     void addHandler(Handler handler) {
@@ -482,7 +464,7 @@ public class ReferrerTest extends JUnit4TestBase {
       addHandler(new AbstractHandler() {
         @Override
         public void handle(String s, Request baseRequest, HttpServletRequest request,
-                           HttpServletResponse response) throws IOException, ServletException {
+                           HttpServletResponse response) throws IOException {
           response.setContentType("application/x-javascript-config; charset=us-ascii");
           response.setStatus(HttpServletResponse.SC_OK);
           response.getWriter().println(getPacFileContents());
@@ -505,7 +487,7 @@ public class ReferrerTest extends JUnit4TestBase {
     private final List<HttpRequest> requests;
 
     TestServer() {
-      requests = Lists.newCopyOnWriteArrayList();
+      requests = new CopyOnWriteArrayList<>();
       addHandler(new PageRequestHandler(requests));
     }
 
@@ -520,7 +502,7 @@ public class ReferrerTest extends JUnit4TestBase {
     private String pacFileContents;
 
     ProxyServer() {
-      requests = Lists.newCopyOnWriteArrayList();
+      requests = new CopyOnWriteArrayList<>();
       addHandler(new PageRequestHandler(requests) {
         @Override
         public void handle(String s, Request baseRequest, HttpServletRequest request,

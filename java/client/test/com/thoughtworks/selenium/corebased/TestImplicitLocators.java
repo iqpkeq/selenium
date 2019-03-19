@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 package com.thoughtworks.selenium.corebased;
 
 import com.thoughtworks.selenium.InternalSelenseTestBase;
@@ -24,7 +23,7 @@ import org.junit.Test;
 
 public class TestImplicitLocators extends InternalSelenseTestBase {
   @Test
-  public void testImplicitLocators() throws Exception {
+  public void testImplicitLocators() {
     selenium.open("../tests/html/test_locators.html");
     verifyEquals(selenium.getText("id1"), "this is the first element");
     verifyEquals(selenium.getAttribute("id1@class"), "a1");

@@ -17,21 +17,18 @@
 
 package org.openqa.selenium;
 
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assume.assumeFalse;
-import static org.openqa.selenium.testing.Driver.CHROME;
-import static org.openqa.selenium.testing.Driver.IE;
-import static org.openqa.selenium.testing.Driver.MARIONETTE;
-import static org.openqa.selenium.testing.Driver.SAFARI;
+import static org.openqa.selenium.testing.drivers.Browser.CHROME;
+import static org.openqa.selenium.testing.drivers.Browser.EDGE;
+import static org.openqa.selenium.testing.drivers.Browser.IE;
+import static org.openqa.selenium.testing.drivers.Browser.MARIONETTE;
+import static org.openqa.selenium.testing.drivers.Browser.SAFARI;
 import static org.openqa.selenium.testing.TestUtilities.getEffectivePlatform;
 import static org.openqa.selenium.testing.TestUtilities.isFirefox;
 
 import org.junit.After;
 import org.junit.Test;
-import org.openqa.selenium.testing.Ignore;
 import org.openqa.selenium.testing.JUnit4TestBase;
 import org.openqa.selenium.testing.NotYetImplemented;
 
@@ -43,7 +40,6 @@ public class ContentEditableTest extends JUnit4TestBase {
   }
 
   @Test
-  @Ignore(value = SAFARI, reason = "cannot type on contentEditable with synthetic events")
   @NotYetImplemented(value = MARIONETTE)
   public void testTypingIntoAnIFrameWithContentEditableOrDesignModeSet() {
     driver.get(pages.richTextPage);
@@ -56,16 +52,13 @@ public class ContentEditableTest extends JUnit4TestBase {
     WebElement trusted = driver.findElement(By.id("istrusted"));
     WebElement id = driver.findElement(By.id("tagId"));
 
-    assertThat(trusted.getText(), anyOf(
-        equalTo("[true]"),
-        // Chrome does not set a trusted flag.
-        equalTo("[n/a]"),
-        equalTo("[]")));
-    assertThat(id.getText(), anyOf(equalTo("[frameHtml]"), equalTo("[theBody]")));
+    assertThat(trusted.getText()).isIn("[true]", "[n/a]", "[]");
+    assertThat(id.getText()).isIn("[frameHtml]", "[theBody]");
   }
 
   @Test
   @NotYetImplemented(value = MARIONETTE)
+  @NotYetImplemented(SAFARI)
   public void testNonPrintableCharactersShouldWorkWithContentEditableOrDesignModeSet() {
     assumeFalse("FIXME: Fails in Firefox on Linux with synthesized events",
                 isFirefox(driver) &&
@@ -78,24 +71,23 @@ public class ContentEditableTest extends JUnit4TestBase {
     element.sendKeys("Dishy", Keys.BACK_SPACE, Keys.LEFT, Keys.LEFT);
     element.sendKeys(Keys.LEFT, Keys.LEFT, "F", Keys.DELETE, Keys.END, "ee!");
 
-    assertEquals("Fishee!", element.getText());
+    assertThat(element.getText()).isEqualTo("Fishee!");
   }
 
   @Test
-  @Ignore(value = SAFARI, reason = "cannot type on contentEditable with synthetic events, issue 3127")
   public void testShouldBeAbleToTypeIntoEmptyContentEditableElement() {
     driver.get(pages.readOnlyPage);
     WebElement editable = driver.findElement(By.id("content-editable-blank"));
 
     editable.sendKeys("cheese");
 
-    assertThat(editable.getText(), equalTo("cheese"));
+    assertThat(editable.getText()).isEqualTo("cheese");
   }
 
   @Test
-  @Ignore(CHROME)
-  @Ignore(IE)
-  @Ignore(SAFARI)
+  @NotYetImplemented(value = CHROME, reason = "https://bugs.chromium.org/p/chromedriver/issues/detail?id=2743")
+  @NotYetImplemented(SAFARI)
+  @NotYetImplemented(EDGE)
   @NotYetImplemented(value = MARIONETTE, reason = "https://github.com/mozilla/geckodriver/issues/667")
   public void testShouldBeAbleToTypeIntoContentEditableElementWithExistingValue() {
     driver.get(pages.readOnlyPage);
@@ -104,12 +96,10 @@ public class ContentEditableTest extends JUnit4TestBase {
     String initialText = editable.getText();
     editable.sendKeys(", edited");
 
-    assertThat(editable.getText(), equalTo(initialText + ", edited"));
+    assertThat(editable.getText()).isEqualTo(initialText + ", edited");
   }
 
   @Test
-  @Ignore(IE)
-  @Ignore(value = SAFARI, reason = "cannot type on contentEditable with synthetic events, issue 3127")
   public void testShouldBeAbleToTypeIntoTinyMCE() {
     driver.get(appServer.whereIs("tinymce.html"));
     driver.switchTo().frame("mce_0_ifr");
@@ -119,14 +109,15 @@ public class ContentEditableTest extends JUnit4TestBase {
     editable.clear();
     editable.sendKeys("cheese"); // requires focus on OS X
 
-    assertThat(editable.getText(), equalTo("cheese"));
+    assertThat(editable.getText()).isEqualTo("cheese");
   }
 
   @Test
-  @Ignore(CHROME)
-  @Ignore(IE)
-  @Ignore(value = SAFARI, reason = "cannot type on contentEditable with synthetic events, issue 3127")
+  @NotYetImplemented(value = CHROME, reason = "https://bugs.chromium.org/p/chromedriver/issues/detail?id=2743")
+  @NotYetImplemented(value = IE, reason = "Prepends text")
+  @NotYetImplemented(value = SAFARI, reason = "Prepends text")
   @NotYetImplemented(value = MARIONETTE, reason = "https://github.com/mozilla/geckodriver/issues/667")
+  @NotYetImplemented(EDGE)
   public void testShouldAppendToTinyMCE() {
     driver.get(appServer.whereIs("tinymce.html"));
     driver.switchTo().frame("mce_0_ifr");
@@ -135,7 +126,17 @@ public class ContentEditableTest extends JUnit4TestBase {
 
     editable.sendKeys(" and cheese"); // requires focus on OS X
 
-    assertThat(editable.getText(), equalTo("Initial content and cheese"));
+    assertThat(editable.getText()).isEqualTo("Initial content and cheese");
   }
 
+  @Test
+  @NotYetImplemented(value = CHROME, reason = "https://bugs.chromium.org/p/chromedriver/issues/detail?id=2743")
+  @NotYetImplemented(value = MARIONETTE, reason = "Doesn't write anything")
+  @NotYetImplemented(value = SAFARI, reason = "Prepends text")
+  public void appendsTextToEndOfContentEditableWithMultipleTextNodes() {
+    driver.get(appServer.whereIs("content-editable.html"));
+    WebElement input = driver.findElement(By.id("editable"));
+    input.sendKeys(", world!");
+    assertThat(input.getText()).isEqualTo("Why hello, world!");
+  }
 }

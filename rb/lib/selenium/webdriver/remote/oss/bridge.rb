@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -364,9 +364,13 @@ module Selenium
           end
 
           def send_keys_to_element(element, keys)
+            # TODO: rework file detectors before Selenium 4.0
             if @file_detector
-              local_file = @file_detector.call(keys)
-              keys = upload(local_file) if local_file
+              local_files = keys.first.split("\n").map { |key| @file_detector.call(Array(key)) }.compact
+              if local_files.any?
+                keys = local_files.map { |local_file| upload(local_file) }
+                keys = keys.join("\n")
+              end
             end
 
             execute :send_keys_to_element, {id: element}, {value: Array(keys)}
@@ -374,7 +378,8 @@ module Selenium
 
           def upload(local_file)
             unless File.file?(local_file)
-              raise Error::WebDriverError, "you may only upload files: #{local_file.inspect}"
+              WebDriver.logger.debug("File detector only works with files. #{local_file.inspect} isn`t a file!")
+              raise Error::WebDriverError, "You are trying to work with something that isn't a file."
             end
 
             execute :upload_file, {}, {file: Zipper.zip_file(local_file)}
@@ -525,7 +530,7 @@ module Selenium
           end
 
           def element_displayed?(element)
-            execute :is_element_displayed, id: element
+            execute :is_element_displayed, id: element.ref
           end
 
           def element_value_of_css_property(element, prop)
@@ -558,6 +563,8 @@ module Selenium
                   else
                     execute :find_elements, {}, {using: how, value: what}
                   end
+            # see https://github.com/SeleniumHQ/selenium/issues/4555
+            ids ||= []
 
             ids.map { |id| Element.new self, element_id_from(id) }
           end
@@ -566,6 +573,7 @@ module Selenium
 
           def assert_javascript_enabled
             return if capabilities.javascript_enabled?
+
             raise Error::UnsupportedOperationError, 'underlying webdriver instance does not support javascript'
           end
 

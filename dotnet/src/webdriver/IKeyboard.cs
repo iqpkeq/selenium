@@ -1,4 +1,4 @@
-﻿// <copyright file="IKeyboard.cs" company="WebDriver Committers">
+// <copyright file="IKeyboard.cs" company="WebDriver Committers">
 // Licensed to the Software Freedom Conservancy (SFC) under one
 // or more contributor license agreements. See the NOTICE file
 // distributed with this work for additional information
@@ -16,12 +16,15 @@
 // limitations under the License.
 // </copyright>
 
+using System;
+
 namespace OpenQA.Selenium
 {
     /// <summary>
     /// Provides methods representing basic keyboard actions.
     /// </summary>
-    public interface IKeyboard
+    [Obsolete("Use the Actions or ActionBuilder class to simulate keyboard input.")]
+    internal interface IKeyboard
     {
         /// <summary>
         /// Sends a sequence of keystrokes to the target.

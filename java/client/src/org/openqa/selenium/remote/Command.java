@@ -19,21 +19,24 @@ package org.openqa.selenium.remote;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 public class Command {
 
-  private SessionId sessionId;
-  private String name;
-  private Map<String, ?> parameters;
+  private final SessionId sessionId;
+  private final CommandPayload payload;
 
   public Command(SessionId sessionId, String name) {
     this(sessionId, name, new HashMap<>());
   }
 
   public Command(SessionId sessionId, String name, Map<String, ?> parameters) {
+    this(sessionId, new CommandPayload(name, parameters));
+  }
+
+  public Command(SessionId sessionId, CommandPayload payload) {
     this.sessionId = sessionId;
-    this.parameters = parameters;
-    this.name = name;
+    this.payload = payload;
   }
 
   public SessionId getSessionId() {
@@ -41,15 +44,32 @@ public class Command {
   }
 
   public String getName() {
-    return name;
+    return payload.getName();
   }
 
   public Map<String, ?> getParameters() {
-    return parameters == null ? new HashMap<>() : parameters;
+    return payload.getParameters();
   }
 
   @Override
   public String toString() {
-    return "[" + sessionId + ", " + name + " " + parameters + "]";
+    return "[" + sessionId + ", " + getName() + " " + getParameters() + "]";
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (!(o instanceof Command)) {
+      return false;
+    }
+
+    Command that = (Command) o;
+    return Objects.equals(this.sessionId, that.sessionId) &&
+           Objects.equals(this.getName(), that.getName()) &&
+           Objects.equals(this.getParameters(), that.getParameters());
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(sessionId, getName(), getParameters());
   }
 }

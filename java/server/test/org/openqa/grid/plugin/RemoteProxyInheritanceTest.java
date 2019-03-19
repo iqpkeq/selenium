@@ -17,15 +17,19 @@
 
 package org.openqa.grid.plugin;
 
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.junit.Assert.assertEquals;
 
 import org.junit.After;
 import org.junit.Test;
 import org.openqa.grid.common.RegistrationRequest;
 import org.openqa.grid.internal.BaseRemoteProxy;
-import org.openqa.grid.internal.Registry;
+import org.openqa.grid.internal.DefaultGridRegistry;
+import org.openqa.grid.internal.GridRegistry;
 import org.openqa.grid.internal.RemoteProxy;
+import org.openqa.grid.internal.utils.configuration.GridHubConfiguration;
 import org.openqa.grid.internal.utils.configuration.GridNodeConfiguration;
+import org.openqa.grid.web.Hub;
 import org.openqa.selenium.remote.CapabilityType;
 import org.openqa.selenium.remote.DesiredCapabilities;
 
@@ -34,7 +38,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class RemoteProxyInheritanceTest {
-  private Registry registry = Registry.newInstance();
+  private GridRegistry registry =
+      DefaultGridRegistry.newInstance(new Hub(new GridHubConfiguration()));
 
   @Test
   public void defaultToRemoteProxy() {
@@ -71,7 +76,7 @@ public class RemoteProxyInheritanceTest {
     assertEquals("B", myRemoteProxy.getConfig().custom.get("Custom2"));
   }
 
-  @Test(expected = InvalidParameterException.class)
+  @Test
   public void notExisting() {
     Map<String, Object> app1 = new HashMap<>();
     GridNodeConfiguration config = new GridNodeConfiguration();
@@ -81,10 +86,11 @@ public class RemoteProxyInheritanceTest {
 
     RegistrationRequest req = new RegistrationRequest(config);
 
-    BaseRemoteProxy.getNewInstance(req, registry);
+    assertThatExceptionOfType(InvalidParameterException.class)
+        .isThrownBy(() -> BaseRemoteProxy.getNewInstance(req, registry));
   }
 
-  @Test(expected = InvalidParameterException.class)
+  @Test
   public void notExtendingProxyExisting() {
     Map<String, Object> app1 = new HashMap<>();
     GridNodeConfiguration config = new GridNodeConfiguration();
@@ -94,11 +100,12 @@ public class RemoteProxyInheritanceTest {
 
     RegistrationRequest req = new RegistrationRequest(config);
 
-    BaseRemoteProxy.getNewInstance(req, registry);
+    assertThatExceptionOfType(InvalidParameterException.class)
+        .isThrownBy(() -> BaseRemoteProxy.getNewInstance(req, registry));
   }
 
   // when some mandatory param are missing -> InvalidParameterException
-  @Test(expected = InvalidParameterException.class)
+  @Test
   public void badConfig() {
     Map<String, Object> app1 = new HashMap<>();
     GridNodeConfiguration config = new GridNodeConfiguration();
@@ -109,7 +116,8 @@ public class RemoteProxyInheritanceTest {
     RegistrationRequest req = new RegistrationRequest(config);
 
     // requires Custom1 & Custom1 set in config to work.
-    BaseRemoteProxy.getNewInstance(req, registry);
+    assertThatExceptionOfType(InvalidParameterException.class)
+        .isThrownBy(() -> BaseRemoteProxy.getNewInstance(req, registry));
   }
 
   @After

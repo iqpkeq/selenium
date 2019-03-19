@@ -17,26 +17,21 @@
 
 package org.openqa.selenium.remote;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 import com.google.common.collect.ImmutableMap;
 
 import org.junit.Test;
+import org.openqa.selenium.Capabilities;
+import org.openqa.selenium.ImmutableCapabilities;
 import org.openqa.selenium.SessionNotCreatedException;
-
-import java.net.MalformedURLException;
-import java.util.Optional;
-
 
 public class W3CHandshakeResponseTest {
 
   @Test
-  public void successfulResponseGetsParsedProperly() throws MalformedURLException {
-    DesiredCapabilities caps = new DesiredCapabilities();
-    caps.setCapability("cheese", "peas");
+  public void successfulResponseGetsParsedProperly() {
+    Capabilities caps = new ImmutableCapabilities("cheese", "peas");
     ImmutableMap<String, ImmutableMap<String, Object>> payload =
         ImmutableMap.of(
             "value", ImmutableMap.of(
@@ -47,25 +42,22 @@ public class W3CHandshakeResponseTest {
         200,
         payload);
 
-    Optional<ProtocolHandshake.Result> optionalResult =
+    ProtocolHandshake.Result result =
         new W3CHandshakeResponse().getResponseFunction().apply(initialResponse);
 
-    assertTrue(optionalResult.isPresent());
-    ProtocolHandshake.Result result = optionalResult.get();
-
-    assertEquals(Dialect.W3C, result.getDialect());
+    assertThat(result).isNotNull();
+    assertThat(result.getDialect()).isEqualTo(Dialect.W3C);
     Response response = result.createResponse();
 
-    assertEquals("success", response.getState());
-    assertEquals(0, (int) response.getStatus());
+    assertThat(response.getState()).isEqualTo("success");
+    assertThat((int) response.getStatus()).isEqualTo(0);
 
-    assertEquals(caps.asMap(), response.getValue());
+    assertThat(response.getValue()).isEqualTo(caps.asMap());
   }
 
   @Test
   public void shouldIgnoreAJsonWireProtocolReply() {
-    DesiredCapabilities caps = new DesiredCapabilities();
-    caps.setCapability("cheese", "peas");
+    Capabilities caps = new ImmutableCapabilities("cheese", "peas");
     ImmutableMap<String, ?> payload =
         ImmutableMap.of(
             "status", 0,
@@ -76,16 +68,15 @@ public class W3CHandshakeResponseTest {
         200,
         payload);
 
-    Optional<ProtocolHandshake.Result> optionalResult =
+    ProtocolHandshake.Result result =
         new W3CHandshakeResponse().getResponseFunction().apply(initialResponse);
 
-    assertFalse(optionalResult.isPresent());
+    assertThat(result).isNull();
   }
 
   @Test
   public void shouldIgnoreAGeckodriver013Reply() {
-    DesiredCapabilities caps = new DesiredCapabilities();
-    caps.setCapability("cheese", "peas");
+    Capabilities caps = new ImmutableCapabilities("cheese", "peas");
     ImmutableMap<String, ?> payload =
         ImmutableMap.of(
             "value", caps.asMap(),
@@ -95,10 +86,10 @@ public class W3CHandshakeResponseTest {
         200,
         payload);
 
-    Optional<ProtocolHandshake.Result> optionalResult =
+    ProtocolHandshake.Result result =
         new W3CHandshakeResponse().getResponseFunction().apply(initialResponse);
 
-    assertFalse(optionalResult.isPresent());
+    assertThat(result).isNull();
   }
 
   @Test
@@ -115,13 +106,9 @@ public class W3CHandshakeResponseTest {
         payload);
 
 
-    try {
-      new W3CHandshakeResponse().getResponseFunction().apply(initialResponse);
-      fail();
-    } catch (SessionNotCreatedException e) {
-      assertTrue(e.getMessage().contains("me no likey"));
-      assertTrue(e.getAdditionalInformation().contains("I have no idea what went wrong"));
-    }
-
+    assertThatExceptionOfType(SessionNotCreatedException.class)
+        .isThrownBy(() -> new W3CHandshakeResponse().getResponseFunction().apply(initialResponse))
+        .withMessageContaining("me no likey")
+        .satisfies(e -> assertThat(e.getAdditionalInformation()).contains("I have no idea what went wrong"));
   }
 }

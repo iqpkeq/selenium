@@ -1,4 +1,19 @@
-#!/usr/bin/env python
+# Licensed to the Software Freedom Conservancy (SFC) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The SFC licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -29,7 +44,7 @@ for scheme in INSTALL_SCHEMES.values():
 setup_args = {
     'cmdclass': {'install': install},
     'name': 'selenium',
-    'version': "3.4.3",
+    'version': "3.141.0",
     'license': 'Apache 2.0',
     'description': 'Python bindings for Selenium',
     'long_description': open(join(abspath(dirname(__file__)), "README.rst")).read(),
@@ -43,9 +58,7 @@ setup_args = {
                     'Topic :: Software Development :: Testing',
                     'Topic :: Software Development :: Libraries',
                     'Programming Language :: Python',
-                    'Programming Language :: Python :: 2.6',
                     'Programming Language :: Python :: 2.7',
-                    'Programming Language :: Python :: 3.3',
                     'Programming Language :: Python :: 3.4',
                     'Programming Language :: Python :: 3.5',
                     'Programming Language :: Python :: 3.6'],
@@ -69,15 +82,8 @@ setup_args = {
                  'selenium.webdriver.phantomjs',
                  'selenium.webdriver.remote',
                  'selenium.webdriver.support', ],
-    'package_data': {
-        'selenium.webdriver.firefox': ['*.xpi', 'webdriver_prefs.json'],
-        'selenium.webdriver.remote': ['getAttribute.js', 'isDisplayed.js'],
-    },
-    'data_files': [('selenium/webdriver/firefox/x86', ['selenium/webdriver/firefox/x86/x_ignore_nofocus.so']),
-                   ('selenium/webdriver/firefox/amd64', ['selenium/webdriver/firefox/amd64/x_ignore_nofocus.so']),
-                   ('selenium/webdriver/remote', ['selenium/webdriver/remote/getAttribute.js']),
-                   ('selenium/webdriver/remote', ['selenium/webdriver/remote/isDisplayed.js'])],
     'include_package_data': True,
+    'install_requires': ['urllib3'],
     'zip_safe': False
 }
 

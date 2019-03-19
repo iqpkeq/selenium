@@ -17,52 +17,58 @@
 
 package org.openqa.selenium.testing.drivers;
 
-import static org.openqa.selenium.testing.DevMode.isInDevMode;
-
-import com.google.common.base.Throwables;
-
 import org.openqa.selenium.Capabilities;
+import org.openqa.selenium.ImmutableCapabilities;
 import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.edge.EdgeDriver;
+import org.openqa.selenium.firefox.FirefoxDriver;
+import org.openqa.selenium.htmlunit.HtmlUnitDriver;
+import org.openqa.selenium.ie.InternetExplorerDriver;
+import org.openqa.selenium.remote.BrowserType;
+import org.openqa.selenium.safari.SafariDriver;
 
-import java.lang.reflect.InvocationTargetException;
 import java.util.function.Supplier;
-import java.util.logging.Logger;
 
 public class DefaultDriverSupplier implements Supplier<WebDriver> {
 
-  private static final Logger log = Logger.getLogger(DefaultDriverSupplier.class.getName());
-  private Class<? extends WebDriver> driverClass;
-  private final Capabilities desiredCapabilities;
-  private final Capabilities requiredCapabilities;
+  private Supplier<WebDriver> driverSupplier;
 
-  public DefaultDriverSupplier(Capabilities desiredCapabilities,
-      Capabilities requiredCapabilities) {
-    this.desiredCapabilities = desiredCapabilities;
-    this.requiredCapabilities = requiredCapabilities;
+  public DefaultDriverSupplier(Capabilities capabilities) {
+    String browserName = capabilities == null ? "" : capabilities.getBrowserName();
 
-    try {
-      // Only support a default driver if we're actually in dev mode.
-      if (isInDevMode()) {
-        driverClass = Class.forName("org.openqa.selenium.testing.drivers.SynthesizedFirefoxDriver")
-            .asSubclass(WebDriver.class);
-      } else {
-        driverClass = null;
-      }
-    } catch (ClassNotFoundException e) {
-      log.severe("Unable to find the default class on the classpath. Tests will fail");
+    if (BrowserType.CHROME.equals(browserName)) {
+      driverSupplier = () -> new TestChromeDriver(capabilities);
+    } else if (BrowserType.OPERA_BLINK.equals(browserName)) {
+      driverSupplier = () -> new TestOperaBlinkDriver(capabilities);
+    } else if (BrowserType.FIREFOX.equals(browserName)) {
+      driverSupplier = () -> new FirefoxDriver(capabilities);
+    } else if (BrowserType.HTMLUNIT.equals(browserName)) {
+      driverSupplier = () -> new HtmlUnitDriver(
+          capabilities == null ? new ImmutableCapabilities() : capabilities);
+    } else if (BrowserType.IE.equals(browserName)) {
+      driverSupplier = () -> new InternetExplorerDriver(capabilities);
+    } else if (BrowserType.EDGE.equals(browserName)) {
+      driverSupplier = () -> new EdgeDriver(capabilities);
+    } else if (browserName.toLowerCase().contains(BrowserType.SAFARI)) {
+      driverSupplier = () -> new SafariDriver(capabilities);
+    } else if (System.getProperty("selenium.browser.class_name") != null) {
+      // No browser name specified, let's try reflection
+      String className = System.getProperty("selenium.browser.class_name");
+      driverSupplier = () -> {
+        try {
+          Class<? extends WebDriver> driverClass = Class.forName(className).asSubclass(WebDriver.class);
+          return driverClass.getConstructor(Capabilities.class).newInstance(capabilities);
+        } catch (ReflectiveOperationException e) {
+          throw new RuntimeException(e);
+        }
+      };
+    } else {
+      throw new RuntimeException("No driver can be provided for capabilities " + capabilities);
     }
   }
 
+  @Override
   public WebDriver get() {
-    log.info("Providing default driver instance");
-
-    try {
-      return driverClass.getConstructor(Capabilities.class, Capabilities.class).
-          newInstance(desiredCapabilities, requiredCapabilities);
-    } catch (InvocationTargetException e) {
-      throw Throwables.propagate(e.getTargetException());
-    } catch (ReflectiveOperationException e) {
-      throw new RuntimeException(e);
-    }
+    return driverSupplier.get();
   }
 }

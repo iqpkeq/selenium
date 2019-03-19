@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -44,7 +44,7 @@ module Selenium
 
           def commands(command)
             case command
-            when :status, :is_element_displayed
+            when :status
               Remote::OSS::Bridge::COMMANDS[command]
             else
               COMMANDS[command]
@@ -164,16 +164,14 @@ module Selenium
           end
 
           def resize_window(width, height, handle = :current)
-            unless handle == :current
-              raise Error::WebDriverError, 'Switch to desired window before changing its size'
-            end
-            execute :set_window_rect, {}, {width: width, height: height}
+            raise Error::WebDriverError, 'Switch to desired window before changing its size' unless handle == :current
+
+            set_window_rect(width: width, height: height)
           end
 
           def window_size(handle = :current)
-            unless handle == :current
-              raise Error::UnsupportedOperationError, 'Switch to desired window before getting its size'
-            end
+            raise Error::UnsupportedOperationError, 'Switch to desired window before getting its size' unless handle == :current
+
             data = execute :get_window_rect
 
             Dimension.new data['width'], data['height']
@@ -184,9 +182,8 @@ module Selenium
           end
 
           def maximize_window(handle = :current)
-            unless handle == :current
-              raise Error::UnsupportedOperationError, 'Switch to desired window before changing its size'
-            end
+            raise Error::UnsupportedOperationError, 'Switch to desired window before changing its size' unless handle == :current
+
             execute :maximize_window
           end
 
@@ -195,7 +192,7 @@ module Selenium
           end
 
           def reposition_window(x, y)
-            execute :set_window_rect, {}, {x: x, y: y}
+            set_window_rect(x: x, y: y)
           end
 
           def window_position
@@ -204,7 +201,9 @@ module Selenium
           end
 
           def set_window_rect(x: nil, y: nil, width: nil, height: nil)
-            execute :set_window_rect, {}, {x: x, y: y, width: width, height: height}
+            params = {x: x, y: y, width: width, height: height}
+            params.update(params) { |_k, v| Integer(v) unless v.nil? }
+            execute :set_window_rect, {}, params
           end
 
           def window_rect
@@ -358,11 +357,28 @@ module Selenium
             execute :element_click, id: element
           end
 
-          # TODO: - Implement file verification
           def send_keys_to_element(element, keys)
+            # TODO: rework file detectors before Selenium 4.0
+            if @file_detector
+              local_files = keys.first.split("\n").map { |key| @file_detector.call(Array(key)) }.compact
+              if local_files.any?
+                keys = local_files.map { |local_file| upload(local_file) }
+                keys = Array(keys.join("\n"))
+              end
+            end
+
             # Keep .split(//) for backward compatibility for now
             text = keys.join('')
             execute :element_send_keys, {id: element}, {value: text.split(//), text: text}
+          end
+
+          def upload(local_file)
+            unless File.file?(local_file)
+              WebDriver.logger.debug("File detector only works with files. #{local_file.inspect} isn`t a file!")
+              raise Error::WebDriverError, "You are trying to work with something that isn't a file."
+            end
+
+            execute :upload_file, {}, {file: Zipper.zip_file(local_file)}
           end
 
           def clear_element(element)
@@ -442,6 +458,7 @@ module Selenium
           end
 
           def element_attribute(element, name)
+            WebDriver.logger.info "Using script for :getAttribute of #{name}"
             execute_atom :getAttribute, element, name
           end
 
@@ -489,7 +506,8 @@ module Selenium
           end
 
           def element_displayed?(element)
-            execute :is_element_displayed, id: element
+            WebDriver.logger.info 'Using script for :isDisplayed'
+            execute_atom :isDisplayed, element
           end
 
           def element_value_of_css_property(element, prop)
@@ -552,7 +570,7 @@ module Selenium
             [how, what]
           end
 
-          ESCAPE_CSS_REGEXP = /(['"\\#.:;,!?+<>=~*^$|%&@`{}\-\[\]\(\)])/
+          ESCAPE_CSS_REGEXP = /(['"\\#.:;,!?+<>=~*^$|%&@`{}\-\[\]\(\)])/.freeze
           UNICODE_CODE_POINT = 30
 
           # Escapes invalid characters in CSS selector.

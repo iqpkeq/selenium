@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -39,13 +39,26 @@ module Selenium
         }.freeze
 
         DEFAULTS.each_key do |key|
-          define_method key do
-            @capabilities.fetch(key)
+          if key != :javascript_enabled
+            define_method key do
+              @capabilities.fetch(key)
+            end
           end
+
+          next if key == :proxy
 
           define_method "#{key}=" do |value|
             @capabilities[key] = value
           end
+        end
+
+        #
+        # Returns javascript_enabled capability.
+        # It is true if not set explicitly.
+        #
+        def javascript_enabled
+          javascript_enabled = @capabilities.fetch(:javascript_enabled)
+          javascript_enabled.nil? ? true : javascript_enabled
         end
 
         alias_method :css_selectors_enabled?, :css_selectors_enabled
@@ -111,6 +124,7 @@ module Selenium
           alias_method :ie, :internet_explorer
 
           def phantomjs(opts = {})
+            WebDriver.logger.deprecate 'Selenium support for PhantomJS', 'headless Chrome/Firefox or HTMLUnit'
             new({
               browser_name: 'phantomjs',
               javascript_enabled: true,
@@ -242,6 +256,7 @@ module Selenium
 
         def ==(other)
           return false unless other.is_a? self.class
+
           as_json == other.as_json
         end
         alias_method :eql?, :==

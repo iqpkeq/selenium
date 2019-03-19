@@ -18,35 +18,37 @@
 package org.openqa.grid.selenium.proxy;
 
 import org.openqa.grid.common.RegistrationRequest;
-import org.openqa.grid.common.SeleniumProtocol;
 import org.openqa.grid.common.exception.RemoteException;
 import org.openqa.grid.common.exception.RemoteNotReachableException;
 import org.openqa.grid.common.exception.RemoteUnregisterException;
 import org.openqa.grid.internal.BaseRemoteProxy;
-import org.openqa.grid.internal.Registry;
+import org.openqa.grid.internal.GridRegistry;
 import org.openqa.grid.internal.TestSession;
 import org.openqa.grid.internal.listeners.CommandListener;
 import org.openqa.grid.internal.listeners.SelfHealingProxy;
 import org.openqa.grid.internal.listeners.TestSessionListener;
 import org.openqa.grid.internal.listeners.TimeoutListener;
 import org.openqa.grid.internal.utils.HtmlRenderer;
-import org.openqa.selenium.chrome.ChromeOptions;
-import org.openqa.selenium.firefox.FirefoxDriver;
-import org.openqa.selenium.remote.BrowserType;
-import org.openqa.selenium.remote.CapabilityType;
+import org.openqa.grid.web.servlet.console.DefaultProxyHtmlRenderer;
+import org.openqa.selenium.remote.server.jmx.JMXHelper;
+import org.openqa.selenium.remote.server.jmx.ManagedAttribute;
+import org.openqa.selenium.remote.server.jmx.ManagedService;
 
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Logger;
 
+import javax.management.MalformedObjectNameException;
+import javax.management.ObjectName;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 /**
  * Default remote proxy for selenium, handling both selenium1 and webdriver requests.
  */
+@ManagedService(description = "Selenium Grid Hub TestSlot")
 public class DefaultRemoteProxy extends BaseRemoteProxy
     implements
       TimeoutListener,
@@ -64,14 +66,22 @@ public class DefaultRemoteProxy extends BaseRemoteProxy
   private volatile int unregisterDelay = DEFAULT_UNREGISTER_DELAY;
   private volatile int downPollingLimit = DEFAULT_DOWN_POLLING_LIMIT;
 
-  public DefaultRemoteProxy(RegistrationRequest request, Registry registry) {
+  public DefaultRemoteProxy(RegistrationRequest request, GridRegistry registry) {
     super(request, registry);
 
     pollingInterval = config.nodePolling != null ? config.nodePolling : DEFAULT_POLLING_INTERVAL;
     unregisterDelay = config.unregisterIfStillDownAfter != null ? config.unregisterIfStillDownAfter : DEFAULT_UNREGISTER_DELAY;
     downPollingLimit = config.downPollingLimit != null ? config.downPollingLimit : DEFAULT_DOWN_POLLING_LIMIT;
+
+    // Only attempt to register the remote proxy as a JMX bean if it's managed.
+    if (this.getClass().getAnnotation(ManagedService.class) != null) {
+      JMXHelper helper = new JMXHelper();
+      helper.unregister(this.getObjectName());
+      helper.register(this);
+    }
   }
 
+  @Override
   public void beforeRelease(TestSession session) {
     // release the resources remotely if the remote started a browser.
     if (session.getExternalKey() == null) {
@@ -84,16 +94,18 @@ public class DefaultRemoteProxy extends BaseRemoteProxy
   }
 
 
+  @Override
   public void afterCommand(TestSession session, HttpServletRequest request, HttpServletResponse response) {
     session.put("lastCommand", request.getMethod() + " - " + request.getPathInfo() + " executed.");
   }
 
 
+  @Override
   public void beforeCommand(TestSession session, HttpServletRequest request, HttpServletResponse response) {
     session.put("lastCommand", request.getMethod() + " - " + request.getPathInfo() + " executing ...");
   }
 
-  private final HtmlRenderer renderer = new WebProxyHtmlRenderer(this);
+  private final HtmlRenderer renderer = new DefaultProxyHtmlRenderer(this);
 
   @Override
   public HtmlRenderer getHtmlRender() {
@@ -106,13 +118,13 @@ public class DefaultRemoteProxy extends BaseRemoteProxy
   private volatile boolean down = false;
   private volatile boolean poll = true;
 
-  // TODO freynaud
-  private List<RemoteException> errors = new CopyOnWriteArrayList<>();
+  private final List<RemoteException> errors = Collections.synchronizedList(new ArrayList<>());
   private Thread pollingThread = null;
 
+  @ManagedAttribute
   public boolean isAlive() {
     try {
-      getStatus();
+      getProxyStatus();
       return true;
     } catch (Exception e) {
       LOG.fine("Failed to check status of node: " + e.getMessage());
@@ -120,11 +132,13 @@ public class DefaultRemoteProxy extends BaseRemoteProxy
     }
   }
 
+  @Override
   public void startPolling() {
     pollingThread = new Thread(new Runnable() { // Thread safety reviewed
           int failedPollingTries = 0;
           long downSince = 0;
 
+          @Override
           public void run() {
             while (poll) {
               try {
@@ -160,27 +174,32 @@ public class DefaultRemoteProxy extends BaseRemoteProxy
     pollingThread.start();
   }
 
+  @Override
   public void stopPolling() {
     poll = false;
     pollingThread.interrupt();
   }
 
+  @Override
   public void addNewEvent(RemoteException event) {
-    errors.add(event);
-    onEvent(errors, event);
-
+    synchronized (errors) {
+      errors.add(event);
+      onEvent(new ArrayList<>(errors), event);
+    }
   }
 
+  @Override
   public void onEvent(List<RemoteException> events, RemoteException lastInserted) {
     for (RemoteException e : events) {
       if (e instanceof RemoteNotReachableException) {
         LOG.info(e.getMessage());
         down = true;
+        // We are already in a synchronized block, so do not need to synchronize again
         this.errors.clear();
       }
       if (e instanceof RemoteUnregisterException) {
         LOG.info(e.getMessage());
-        Registry registry = this.getRegistry();
+        GridRegistry registry = this.getRegistry();
         registry.removeIfPresent(this);
       }
     }
@@ -197,6 +216,7 @@ public class DefaultRemoteProxy extends BaseRemoteProxy
     return super.getNewSession(requestedCapability);
   }
 
+  @ManagedAttribute
   public boolean isDown() {
     return down;
   }
@@ -218,33 +238,12 @@ public class DefaultRemoteProxy extends BaseRemoteProxy
    * the server. That way the version / install location mapping is done only once at the node
    * level.
    */
+  @Override
   public void beforeSession(TestSession session) {
-    if (session.getSlot().getProtocol() == SeleniumProtocol.WebDriver) {
-      Map<String, Object> cap = session.getRequestedCapabilities();
-
-      if (BrowserType.FIREFOX.equals(cap.get(CapabilityType.BROWSER_NAME))) {
-        if (session.getSlot().getCapabilities().get(FirefoxDriver.BINARY) != null
-            && cap.get(FirefoxDriver.BINARY) == null) {
-          session.getRequestedCapabilities().put(FirefoxDriver.BINARY,
-              session.getSlot().getCapabilities().get(FirefoxDriver.BINARY));
-        }
-      }
-
-      if (BrowserType.CHROME.equals(cap.get(CapabilityType.BROWSER_NAME))) {
-        if (session.getSlot().getCapabilities().get("chrome_binary") != null) {
-          Map<String, Object> options = (Map<String, Object>) cap.get(ChromeOptions.CAPABILITY);
-          if (options == null) {
-            options = new HashMap<>();
-          }
-          if (!options.containsKey("binary")) {
-            options.put("binary", session.getSlot().getCapabilities().get("chrome_binary"));
-          }
-          cap.put(ChromeOptions.CAPABILITY, options);
-        }
-      }
-    }
+    // Nothing to do by default
   }
 
+  @Override
   public void afterSession(TestSession session) {
     // nothing to do here in this default implementation
   }
@@ -254,4 +253,15 @@ public class DefaultRemoteProxy extends BaseRemoteProxy
     super.teardown();
     stopPolling();
   }
+
+  public ObjectName getObjectName() {
+    try {
+      return new ObjectName(
+          String.format("org.seleniumhq.grid:type=RemoteProxy,node=\"%s\"", getRemoteHost()));
+    } catch (MalformedObjectNameException e) {
+      e.printStackTrace();
+      return null;
+    }
+  }
+
 }

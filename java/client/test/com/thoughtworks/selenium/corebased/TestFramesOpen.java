@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 package com.thoughtworks.selenium.corebased;
 
 import com.thoughtworks.selenium.InternalSelenseTestBase;
@@ -24,7 +23,7 @@ import org.junit.Test;
 
 public class TestFramesOpen extends InternalSelenseTestBase {
   @Test
-  public void testFramesOpen() throws Exception {
+  public void testFramesOpen() {
     selenium.open("../tests/html/Frames.html");
     selenium.selectFrame("mainFrame");
     verifyTrue(selenium.getLocation().matches("^[\\s\\S]*/tests/html/test_open\\.html$"));

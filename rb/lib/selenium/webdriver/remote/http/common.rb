@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -23,8 +23,12 @@ module Selenium
       module Http
         class Common
           MAX_REDIRECTS   = 20 # same as chromium/gecko
-          CONTENT_TYPE    = 'application/json'.freeze
-          DEFAULT_HEADERS = {'Accept' => CONTENT_TYPE}.freeze
+          CONTENT_TYPE    = 'application/json'
+          DEFAULT_HEADERS = {
+            'Accept' => CONTENT_TYPE,
+            'Content-Type' => "#{CONTENT_TYPE}; charset=UTF-8",
+            'User-Agent' => "selenium/#{WebDriver::VERSION} (ruby #{Platform.os})"
+          }.freeze
 
           attr_accessor :timeout
           attr_writer :server_url
@@ -48,8 +52,7 @@ module Selenium
 
             if command_hash
               payload                   = JSON.generate(command_hash)
-              headers['Content-Type']   = "#{CONTENT_TYPE}; charset=utf-8"
-              headers['Content-Length'] = payload.bytesize.to_s if [:post, :put].include?(verb)
+              headers['Content-Length'] = payload.bytesize.to_s if %i[post put].include?(verb)
 
               WebDriver.logger.info("   >>> #{url} | #{payload}")
               WebDriver.logger.debug("     > #{headers.inspect}")
@@ -65,6 +68,7 @@ module Selenium
 
           def server_url
             return @server_url if @server_url
+
             raise Error::WebDriverError, 'server_url not set'
           end
 
@@ -80,6 +84,7 @@ module Selenium
 
             if content_type.include? CONTENT_TYPE
               raise Error::WebDriverError, "empty body: #{content_type.inspect} (#{code})\n#{body}" if body.empty?
+
               Response.new(code, JSON.parse(body))
             elsif code == 204
               Response.new(code)

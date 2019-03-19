@@ -17,8 +17,6 @@
 
 package org.openqa.selenium.remote.http;
 
-import static com.google.common.base.Charsets.UTF_16;
-import static com.google.common.base.Charsets.UTF_8;
 import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
 import static com.google.common.net.MediaType.JSON_UTF_8;
 import static java.net.HttpURLConnection.HTTP_BAD_REQUEST;
@@ -26,27 +24,21 @@ import static java.net.HttpURLConnection.HTTP_CLIENT_TIMEOUT;
 import static java.net.HttpURLConnection.HTTP_INTERNAL_ERROR;
 import static java.net.HttpURLConnection.HTTP_NO_CONTENT;
 import static java.net.HttpURLConnection.HTTP_OK;
-import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
+import static java.nio.charset.StandardCharsets.UTF_16;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.google.common.collect.ImmutableMap;
 
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.JUnit4;
 import org.openqa.selenium.ScriptTimeoutException;
 import org.openqa.selenium.WebDriverException;
-import org.openqa.selenium.remote.BeanToJsonConverter;
+import org.openqa.selenium.json.Json;
 import org.openqa.selenium.remote.Dialect;
 import org.openqa.selenium.remote.ErrorCodes;
-import org.openqa.selenium.remote.JsonToBeanConverter;
 import org.openqa.selenium.remote.RemoteWebElement;
 import org.openqa.selenium.remote.Response;
 
-@RunWith(JUnit4.class)
 public class JsonHttpResponseCodecTest {
 
   private final JsonHttpResponseCodec codec = new JsonHttpResponseCodec();
@@ -57,17 +49,16 @@ public class JsonHttpResponseCodecTest {
     response.setStatus(ErrorCodes.SUCCESS);
     response.setValue(ImmutableMap.of("color", "red"));
 
-    HttpResponse converted = codec.encode(response);
-    assertThat(converted.getStatus(), is(HTTP_OK));
-    assertThat(converted.getHeader(CONTENT_TYPE), is(JSON_UTF_8.toString()));
+    HttpResponse converted = codec.encode(HttpResponse::new, response);
+    assertThat(converted.getStatus()).isEqualTo(HTTP_OK);
+    assertThat(converted.getHeader(CONTENT_TYPE)).isEqualTo(JSON_UTF_8.toString());
 
-    Response rebuilt = new JsonToBeanConverter().convert(
-        Response.class, new String(converted.getContent(), UTF_8));
+    Response rebuilt = new Json().toType(new String(converted.getContent(), UTF_8), Response.class);
 
-    assertEquals(response.getStatus(), rebuilt.getStatus());
-    assertEquals(new ErrorCodes().toState(response.getStatus()), rebuilt.getState());
-    assertEquals(response.getSessionId(), rebuilt.getSessionId());
-    assertEquals(response.getValue(), rebuilt.getValue());
+    assertThat(rebuilt.getStatus()).isEqualTo(response.getStatus());
+    assertThat(rebuilt.getState()).isEqualTo(new ErrorCodes().toState(response.getStatus()));
+    assertThat(rebuilt.getSessionId()).isEqualTo(response.getSessionId());
+    assertThat(rebuilt.getValue()).isEqualTo(response.getValue());
   }
 
   @Test
@@ -76,17 +67,16 @@ public class JsonHttpResponseCodecTest {
     response.setStatus(ErrorCodes.NO_SUCH_ELEMENT);
     response.setValue(ImmutableMap.of("color", "red"));
 
-    HttpResponse converted = codec.encode(response);
-    assertThat(converted.getStatus(), is(HTTP_INTERNAL_ERROR));
-    assertThat(converted.getHeader(CONTENT_TYPE), is(JSON_UTF_8.toString()));
+    HttpResponse converted = codec.encode(HttpResponse::new, response);
+    assertThat(converted.getStatus()).isEqualTo(HTTP_INTERNAL_ERROR);
+    assertThat(converted.getHeader(CONTENT_TYPE)).isEqualTo(JSON_UTF_8.toString());
 
-    Response rebuilt = new JsonToBeanConverter().convert(
-        Response.class, new String(converted.getContent(), UTF_8));
+    Response rebuilt = new Json().toType(new String(converted.getContent(), UTF_8), Response.class);
 
-    assertEquals(response.getStatus(), rebuilt.getStatus());
-    assertEquals(new ErrorCodes().toState(response.getStatus()), rebuilt.getState());
-    assertEquals(response.getSessionId(), rebuilt.getSessionId());
-    assertEquals(response.getValue(), rebuilt.getValue());
+    assertThat(rebuilt.getStatus()).isEqualTo(response.getStatus());
+    assertThat(rebuilt.getState()).isEqualTo(new ErrorCodes().toState(response.getStatus()));
+    assertThat(rebuilt.getSessionId()).isEqualTo(response.getSessionId());
+    assertThat(rebuilt.getValue()).isEqualTo(response.getValue());
   }
 
   @Test
@@ -95,12 +85,12 @@ public class JsonHttpResponseCodecTest {
     response.setStatus(ErrorCodes.SUCCESS);
     response.setValue(ImmutableMap.of("color", "red"));
 
-    HttpResponse httpResponse = codec.encode(response);
+    HttpResponse httpResponse = codec.encode(HttpResponse::new, response);
     Response decoded = codec.decode(httpResponse);
 
-    assertEquals(response.getStatus(), decoded.getStatus());
-    assertEquals(response.getSessionId(), decoded.getSessionId());
-    assertEquals(response.getValue(), decoded.getValue());
+    assertThat(decoded.getStatus()).isEqualTo(response.getStatus());
+    assertThat(decoded.getSessionId()).isEqualTo(response.getSessionId());
+    assertThat(decoded.getValue()).isEqualTo(response.getValue());
   }
 
   @Test
@@ -110,8 +100,8 @@ public class JsonHttpResponseCodecTest {
     response.setContent("{\"foobar\"}".getBytes(UTF_8));
 
     Response decoded = codec.decode(response);
-    assertEquals(0, decoded.getStatus().longValue());
-    assertEquals("{\"foobar\"}", decoded.getValue());
+    assertThat(decoded.getStatus().longValue()).isEqualTo(0);
+    assertThat(decoded.getValue()).isEqualTo("{\"foobar\"}");
   }
 
   @Test
@@ -120,8 +110,8 @@ public class JsonHttpResponseCodecTest {
     response.setStatus(HTTP_NO_CONTENT);
 
     Response decoded = codec.decode(response);
-    assertNull(decoded.getStatus());
-    assertNull(decoded.getValue());
+    assertThat(decoded.getStatus()).isNull();
+    assertThat(decoded.getValue()).isNull();
   }
 
   @Test
@@ -131,8 +121,8 @@ public class JsonHttpResponseCodecTest {
     response.setContent("{\"foobar\"}".getBytes(UTF_8));
 
     Response decoded = codec.decode(response);
-    assertEquals(ErrorCodes.UNKNOWN_COMMAND, decoded.getStatus().intValue());
-    assertEquals("{\"foobar\"}", decoded.getValue());
+    assertThat(decoded.getStatus().intValue()).isEqualTo(ErrorCodes.UNKNOWN_COMMAND);
+    assertThat(decoded.getValue()).isEqualTo("{\"foobar\"}");
   }
 
   @Test
@@ -142,8 +132,8 @@ public class JsonHttpResponseCodecTest {
     response.setContent("{\"foobar\"}".getBytes(UTF_8));
 
     Response decoded = codec.decode(response);
-    assertEquals(ErrorCodes.UNHANDLED_ERROR, decoded.getStatus().intValue());
-    assertEquals("{\"foobar\"}", decoded.getValue());
+    assertThat(decoded.getStatus().intValue()).isEqualTo(ErrorCodes.UNHANDLED_ERROR);
+    assertThat(decoded.getValue()).isEqualTo("{\"foobar\"}");
   }
 
   @Test
@@ -154,13 +144,12 @@ public class JsonHttpResponseCodecTest {
 
     HttpResponse httpResponse = new HttpResponse();
     httpResponse.setStatus(HTTP_OK);
-    httpResponse.setContent(
-        new BeanToJsonConverter().convert(response).getBytes(UTF_8));
+    httpResponse.setContent(new Json().toJson(response).getBytes(UTF_8));
 
     Response decoded = codec.decode(httpResponse);
-    assertEquals(response.getStatus(), decoded.getStatus());
-    assertEquals(response.getSessionId(), decoded.getSessionId());
-    assertEquals(response.getValue(), decoded.getValue());
+    assertThat(decoded.getStatus()).isEqualTo(response.getStatus());
+    assertThat(decoded.getSessionId()).isEqualTo(response.getSessionId());
+    assertThat(decoded.getValue()).isEqualTo(response.getValue());
   }
 
   @Test
@@ -171,7 +160,7 @@ public class JsonHttpResponseCodecTest {
     httpResponse.setContent("{\"status\":0,\"value\":\"水\"}".getBytes(UTF_16));
 
     Response response = codec.decode(httpResponse);
-    assertEquals("水", response.getValue());
+    assertThat(response.getValue()).isEqualTo("水");
   }
 
   @Test
@@ -181,20 +170,20 @@ public class JsonHttpResponseCodecTest {
     response.setContent("{\"status\":0,\"value\":\"foo\"}\0\0".getBytes(UTF_8));
 
     Response decoded = codec.decode(response);
-    assertEquals(ErrorCodes.SUCCESS, decoded.getStatus().intValue());
-    assertEquals("foo", decoded.getValue());
+    assertThat(decoded.getStatus().intValue()).isEqualTo(ErrorCodes.SUCCESS);
+    assertThat(decoded.getValue()).isEqualTo("foo");
   }
 
   @Test
   public void shouldConvertElementReferenceToRemoteWebElement() {
     HttpResponse response = new HttpResponse();
     response.setStatus(HTTP_OK);
-    response.setContent(new BeanToJsonConverter().convert(ImmutableMap.of(
+    response.setContent(new Json().toJson(ImmutableMap.of(
         "status", 0,
         "value", ImmutableMap.of(Dialect.OSS.getEncodedElementKey(), "345678"))).getBytes(UTF_8));
 
     Response decoded = codec.decode(response);
-    assertEquals("345678", ((RemoteWebElement) decoded.getValue()).getId());
+    assertThat(((RemoteWebElement) decoded.getValue()).getId()).isEqualTo("345678");
   }
 
   @Test
@@ -206,14 +195,13 @@ public class JsonHttpResponseCodecTest {
 
     HttpResponse httpResponse = new HttpResponse();
     httpResponse.setStatus(HTTP_CLIENT_TIMEOUT);
-    httpResponse.setContent(
-        new BeanToJsonConverter().convert(response).getBytes(UTF_8));
+    httpResponse.setContent(new Json().toJson(response).getBytes(UTF_8));
 
     Response decoded = codec.decode(httpResponse);
-    assertEquals(ErrorCodes.ASYNC_SCRIPT_TIMEOUT, decoded.getStatus().intValue());
+    assertThat(decoded.getStatus().intValue()).isEqualTo(ErrorCodes.ASYNC_SCRIPT_TIMEOUT);
 
     WebDriverException seenException = (WebDriverException) decoded.getValue();
-    assertEquals(exception.getClass(), seenException.getClass());
-    assertTrue(seenException.getMessage().startsWith(exception.getMessage()));
+    assertThat(seenException.getClass()).isEqualTo(exception.getClass());
+    assertThat(seenException.getMessage().startsWith(exception.getMessage())).isTrue();
   }
 }

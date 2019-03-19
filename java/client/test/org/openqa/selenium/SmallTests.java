@@ -21,6 +21,7 @@ import org.junit.runners.Suite;
 import org.openqa.selenium.interactions.CompositeActionTest;
 import org.openqa.selenium.interactions.IndividualKeyboardActionsTest;
 import org.openqa.selenium.interactions.IndividualMouseActionsTest;
+import org.openqa.selenium.interactions.PointerInputTest;
 import org.openqa.selenium.io.FileHandlerTest;
 import org.openqa.selenium.io.TemporaryFilesystemTest;
 import org.openqa.selenium.io.ZipTest;
@@ -28,9 +29,9 @@ import org.openqa.selenium.logging.LoggingTest;
 import org.openqa.selenium.logging.PerformanceLoggingMockTest;
 import org.openqa.selenium.net.LinuxEphemeralPortRangeDetectorTest;
 import org.openqa.selenium.net.NetworkUtilsTest;
+import org.openqa.selenium.net.UrlCheckerTest;
 import org.openqa.selenium.os.CommandLineTest;
-import org.openqa.selenium.os.WindowsUtilsUnitTest;
-import org.openqa.selenium.testing.drivers.IgnoreComparatorUnitTest;
+import org.openqa.selenium.testing.IgnoreComparatorUnitTest;
 
 @RunWith(Suite.class)
 @Suite.SuiteClasses({
@@ -41,6 +42,7 @@ import org.openqa.selenium.testing.drivers.IgnoreComparatorUnitTest;
     DimensionTest.class,
     FileHandlerTest.class,
     IgnoreComparatorUnitTest.class,
+    ImmutableCapabilitiesTest.class,
     IndividualKeyboardActionsTest.class,
     IndividualMouseActionsTest.class,
     KeysTest.class,
@@ -51,10 +53,11 @@ import org.openqa.selenium.testing.drivers.IgnoreComparatorUnitTest;
     PerformanceLoggingMockTest.class,
     PlatformTest.class,
     PointTest.class,
+    PointerInputTest.class,
     ProxyTest.class,
     TemporaryFilesystemTest.class,
+    UrlCheckerTest.class,
     WebDriverExceptionTest.class,
-    WindowsUtilsUnitTest.class,
     ZipTest.class,
 
     org.openqa.selenium.support.SmallTests.class,

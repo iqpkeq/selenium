@@ -17,13 +17,12 @@
 
 package org.openqa.grid.web.servlet;
 
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.JUnit4;
 import org.openqa.testing.FakeHttpServletResponse;
 
 import java.io.IOException;
@@ -31,7 +30,6 @@ import java.io.IOException;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletResponse;
 
-@RunWith(JUnit4.class)
 public class ResourceServletTest extends BaseServletTest {
 
   @Before
@@ -41,15 +39,26 @@ public class ResourceServletTest extends BaseServletTest {
   }
 
   @Test
-  public void testGetResourceSuccess() throws IOException, ServletException {
-    FakeHttpServletResponse response = sendCommand("GET",
+  public void testGetCssResourceSuccess() throws IOException, ServletException {
+    FakeHttpServletResponse cssResourceResponse = sendCommand("GET",
                                                    "/org/openqa/grid/images/consoleservlet.css");
-    assertEquals(HttpServletResponse.SC_OK, response.getStatus());
-    assertNotNull(response.getBody());
+    assertEquals(HttpServletResponse.SC_OK, cssResourceResponse.getStatus());
+    assertEquals("text/css",cssResourceResponse.getHeader("Content-Type"));
+    assertNotNull(cssResourceResponse.getBody());
   }
 
-  @Test(expected = Error.class)
-  public void testGetResouceFailed() throws IOException, ServletException {
-    FakeHttpServletResponse response = sendCommand("GET", "/foo/bar");
+  @Test
+  public void testGetJsResourceSuccess() throws IOException, ServletException {
+    FakeHttpServletResponse jsResourceResponse = sendCommand("GET",
+    										       "/org/openqa/grid/images/consoleservlet.js");
+    assertEquals(HttpServletResponse.SC_OK, jsResourceResponse.getStatus());
+    assertEquals("application/javascript",jsResourceResponse.getHeader("Content-Type"));
+    assertNotNull(jsResourceResponse.getBody());
+  }
+
+  @Test
+  public void testGetResouceFailed() {
+    assertThatExceptionOfType(Error.class)
+        .isThrownBy(() -> sendCommand("GET", "/foo/bar"));
   }
 }

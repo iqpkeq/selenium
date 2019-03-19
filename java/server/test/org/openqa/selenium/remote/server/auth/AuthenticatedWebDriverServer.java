@@ -15,14 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 package org.openqa.selenium.remote.server.auth;
 
-import org.openqa.selenium.Platform;
-import org.openqa.selenium.remote.server.DefaultDriverFactory;
-import org.openqa.selenium.remote.server.DefaultDriverSessions;
-import org.openqa.selenium.remote.server.DriverServlet;
-import org.openqa.selenium.remote.server.SystemClock;
+import org.openqa.selenium.remote.server.WebDriverServlet;
 import org.seleniumhq.jetty9.security.AbstractLoginService;
 import org.seleniumhq.jetty9.security.ConstraintMapping;
 import org.seleniumhq.jetty9.security.ConstraintSecurityHandler;
@@ -69,16 +64,9 @@ public class AuthenticatedWebDriverServer {
     securityHandler.setLoginService(loginService);
     securityHandler.setAuthenticator(new BasicAuthenticator());
 
-    ServletContextHandler context = new ServletContextHandler(
-        ServletContextHandler.SESSIONS);
+    ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
     context.setContextPath("/wd/hub");
-    context.setAttribute(
-        DriverServlet.SESSIONS_KEY,
-        new DefaultDriverSessions(
-            Platform.getCurrent(),
-            new DefaultDriverFactory(),
-            new SystemClock()));
-    context.addServlet(new ServletHolder(DriverServlet.class), "/*");
+    context.addServlet(new ServletHolder(WebDriverServlet.class), "/*");
     context.setSecurityHandler(securityHandler);
 
     server.setHandler(context);

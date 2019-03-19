@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -21,6 +21,7 @@ require 'net/http'
 
 require 'selenium/webdriver/edge/bridge'
 require 'selenium/webdriver/edge/driver'
+require 'selenium/webdriver/edge/options'
 require 'selenium/webdriver/edge/service'
 
 module Selenium
@@ -31,7 +32,7 @@ module Selenium
         @driver_path = path
       end
 
-      def self.driver_path(warning = true)
+      def self.driver_path(_warning = true)
         @driver_path ||= nil
       end
     end # Edge

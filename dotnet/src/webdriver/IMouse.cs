@@ -1,4 +1,4 @@
-﻿// <copyright file="IMouse.cs" company="WebDriver Committers">
+// <copyright file="IMouse.cs" company="WebDriver Committers">
 // Licensed to the Software Freedom Conservancy (SFC) under one
 // or more contributor license agreements. See the NOTICE file
 // distributed with this work for additional information
@@ -16,6 +16,7 @@
 // limitations under the License.
 // </copyright>
 
+using System;
 using OpenQA.Selenium.Interactions.Internal;
 
 namespace OpenQA.Selenium
@@ -23,7 +24,8 @@ namespace OpenQA.Selenium
     /// <summary>
     /// Provides methods representing basic mouse actions.
     /// </summary>
-    public interface IMouse
+    [Obsolete("Use the Actions or ActionBuilder class to simulate mouse input.")]
+    internal interface IMouse
     {
         /// <summary>
         /// Clicks at a set of coordinates using the primary mouse button.

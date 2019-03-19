@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -17,7 +17,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-require File.expand_path('../../spec_helper', __FILE__)
+require File.expand_path('../spec_helper', __dir__)
 
 module Selenium
   module WebDriver
@@ -72,19 +72,6 @@ module Selenium
 
           driver = Driver.new(http_client: http, driver_opts: driver_opts)
           expect(driver.instance_variable_get("@service").instance_variable_get("@extra_args")).to eq args
-        end
-
-        it 'deprecates `service_args`' do
-          args = ["--log-level=DEBUG",
-                  "--log-file=/foo",
-                  "--implementation=VENDOR",
-                  "--host=localhost",
-                  "--extract_path=/bar",
-                  "--silent"]
-
-          expect(WebDriver.logger).to receive(:deprecate).with(':service_args', "driver_opts: {args: #{args}}")
-          @driver = Driver.new(http_client: http, service_args: args)
-          expect(@driver.instance_variable_get("@service").instance_variable_get("@extra_args")).to eq args
         end
       end
     end # IE

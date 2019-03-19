@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -22,6 +22,8 @@ module Selenium
     module Remote
       # @api private
       class Response
+        STACKTRACE_KEY = 'stackTrace'
+
         attr_reader :code, :payload
         attr_writer :payload
 
@@ -49,6 +51,7 @@ module Selenium
           when Hash
             msg = val['message']
             return 'unknown error' unless msg
+
             msg << ": #{val['alert']['text'].inspect}" if val['alert'].is_a?(Hash) && val['alert']['text']
             msg << " (#{val['class']})" if val['class']
             msg
@@ -69,15 +72,30 @@ module Selenium
           e = error
           raise e if e
           return unless @code.nil? || @code >= 400
+
           raise Error::ServerError, self
         end
 
         def add_backtrace(ex)
-          return unless value.is_a?(Hash) && value['stackTrace']
+          return unless error_payload.is_a?(Hash)
 
-          server_trace = value['stackTrace']
+          server_trace = error_payload[STACKTRACE_KEY] ||
+                         error_payload[STACKTRACE_KEY.downcase] ||
+                         error_payload.dig('value', STACKTRACE_KEY)
+          return unless server_trace
 
-          backtrace = server_trace.map do |frame|
+          backtrace = case server_trace
+                      when Array
+                        backtrace_from_remote(server_trace)
+                      when String
+                        server_trace.split("\n")
+                      end
+
+          ex.set_backtrace(backtrace + ex.backtrace)
+        end
+
+        def backtrace_from_remote(server_trace)
+          server_trace.map { |frame|
             next unless frame.is_a?(Hash)
 
             file = frame['fileName']
@@ -90,9 +108,7 @@ module Selenium
             meth = 'unknown' if meth.nil? || meth.empty?
 
             "[remote server] #{file}:#{line}:in `#{meth}'"
-          end.compact
-
-          ex.set_backtrace(backtrace + ex.backtrace)
+          }.compact
         end
 
         def error_payload
@@ -103,11 +119,13 @@ module Selenium
 
         def status
           return unless error_payload.is_a? Hash
+
           @status ||= error_payload['status'] || error_payload['error']
         end
 
         def value
           return unless error_payload.is_a? Hash
+
           @value ||= error_payload['value'] || error_payload['message']
         end
       end # Response

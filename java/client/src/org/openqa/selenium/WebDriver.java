@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * The main interface to use for testing, which represents an idealised web browser. The methods in
- * this class fall into three categories:
+ * this interface fall into three categories:
  * <ul>
  * <li>Control of the browser itself</li>
  * <li>Selection of {@link WebElement}s</li>
@@ -39,8 +39,8 @@ import java.util.concurrent.TimeUnit;
  * various methods similar to {@link WebDriver#findElement(By)}, which is used to find
  * {@link WebElement}s.
  * <p>
- * Currently, you will need to instantiate implementations of this class directly. It is hoped that
- * you write your tests against this interface so that you may "swap in" a more fully featured
+ * Currently, you will need to instantiate implementations of this interface directly. It is hoped
+ * that you write your tests against this interface so that you may "swap in" a more fully featured
  * browser when there is a requirement for one.
  * <p>
  * Note that all methods that use XPath to locate elements will throw a {@link RuntimeException}
@@ -90,6 +90,7 @@ public interface WebDriver extends SearchContext {
    * @see org.openqa.selenium.By
    * @see org.openqa.selenium.WebDriver.Timeouts
    */
+  @Override
   List<WebElement> findElements(By by);
 
 
@@ -108,6 +109,7 @@ public interface WebDriver extends SearchContext {
    * @see org.openqa.selenium.By
    * @see org.openqa.selenium.WebDriver.Timeouts
    */
+  @Override
   WebElement findElement(By by);
 
   // Misc
@@ -354,6 +356,18 @@ public interface WebDriver extends SearchContext {
     WebDriver window(String nameOrHandle);
 
     /**
+     * Creates a new browser window and switches the focus for future commands of this driver
+     * to the new window..
+     *
+     * @param typeHint The type of new browser window to be created. The created window is not
+     *                 guaranteed to be of the requested type; if the driver does not support
+     *                 the requested type, a new browser window will be created of whatever type
+     *                 the driver does support.
+     * @return This driver focused on the given window
+     */
+    WebDriver newWindow(WindowType typeHint);
+
+    /**
      * Selects either the first frame on the page, or the main document when a page contains
      * iframes.
      *
@@ -457,7 +471,7 @@ public interface WebDriver extends SearchContext {
     /**
      * Make an engines that is available (appears on the list returned by getAvailableEngines)
      * active. After this call, the only loaded engine on the IME daemon will be this one and the
-     * input sent using sendKeys will be converted by the engine. Noteh that this is a
+     * input sent using sendKeys will be converted by the engine. Note that this is a
      * platform-independent method of activating IME (the platform-specific way being using keyboard
      * shortcuts).
      *

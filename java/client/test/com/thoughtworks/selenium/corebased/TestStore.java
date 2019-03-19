@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 package com.thoughtworks.selenium.corebased;
 
 import com.thoughtworks.selenium.InternalSelenseTestBase;
@@ -24,7 +23,7 @@ import org.junit.Test;
 
 public class TestStore extends InternalSelenseTestBase {
   @Test
-  public void testStore() throws Exception {
+  public void testStore() {
     selenium.open("../tests/html/test_verifications.html");
     String storedHiddenValue = selenium.getValue("theHidden");
     String storedSpanText = selenium.getText("theSpan");

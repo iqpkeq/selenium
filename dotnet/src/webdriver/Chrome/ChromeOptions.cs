@@ -1,4 +1,4 @@
-﻿// <copyright file="ChromeOptions.cs" company="WebDriver Committers">
+// <copyright file="ChromeOptions.cs" company="WebDriver Committers">
 // Licensed to the Software Freedom Conservancy (SFC) under one
 // or more contributor license agreements. See the NOTICE file
 // distributed with this work for additional information
@@ -56,7 +56,13 @@ namespace OpenQA.Selenium.Chrome
         /// Gets the name of the capability used to store Chrome options in
         /// a <see cref="DesiredCapabilities"/> object.
         /// </summary>
-        public static readonly string Capability = "chromeOptions";
+        public static readonly string Capability = "goog:chromeOptions";
+
+        // TODO: Remove this if block when chromedriver bug 2371 is fixed
+        // (https://bugs.chromium.org/p/chromedriver/issues/detail?id=2371)
+        internal static readonly string ForceAlwaysMatchCapabilityName = "se:forceAlwaysMatch";
+
+        private const string BrowserNameValue = "chrome";
 
         private const string ArgumentsChromeOption = "args";
         private const string BinaryChromeOption = "binary";
@@ -70,8 +76,10 @@ namespace OpenQA.Selenium.Chrome
         private const string MobileEmulationChromeOption = "mobileEmulation";
         private const string PerformanceLoggingPreferencesChromeOption = "perfLoggingPrefs";
         private const string WindowTypesChromeOption = "windowTypes";
+        private const string UseSpecCompliantProtocolOption = "w3c";
 
         private bool leaveBrowserRunning;
+        private bool useSpecCompliantProtocol;
         private string binaryLocation;
         private string debuggerAddress;
         private string minidumpPath;
@@ -80,7 +88,6 @@ namespace OpenQA.Selenium.Chrome
         private List<string> encodedExtensions = new List<string>();
         private List<string> excludedSwitches = new List<string>();
         private List<string> windowTypes = new List<string>();
-        private Dictionary<string, object> additionalCapabilities = new Dictionary<string, object>();
         private Dictionary<string, object> additionalChromeOptions = new Dictionary<string, object>();
         private Dictionary<string, object> userProfilePreferences;
         private Dictionary<string, object> localStatePreferences;
@@ -89,7 +96,26 @@ namespace OpenQA.Selenium.Chrome
         private ChromeMobileEmulationDeviceSettings mobileEmulationDeviceSettings;
         private ChromePerformanceLoggingPreferences perfLoggingPreferences;
 
-        private Proxy proxy;
+        public ChromeOptions() : base()
+        {
+            this.BrowserName = BrowserNameValue;
+            this.AddKnownCapabilityName(ChromeOptions.Capability, "current ChromeOptions class instance");
+            this.AddKnownCapabilityName(CapabilityType.LoggingPreferences, "SetLoggingPreference method");
+            this.AddKnownCapabilityName(ChromeOptions.ArgumentsChromeOption, "AddArguments method");
+            this.AddKnownCapabilityName(ChromeOptions.BinaryChromeOption, "BinaryLocation property");
+            this.AddKnownCapabilityName(ChromeOptions.ExtensionsChromeOption, "AddExtensions method");
+            this.AddKnownCapabilityName(ChromeOptions.LocalStateChromeOption, "AddLocalStatePreference method");
+            this.AddKnownCapabilityName(ChromeOptions.PreferencesChromeOption, "AddUserProfilePreference method");
+            this.AddKnownCapabilityName(ChromeOptions.DetachChromeOption, "LeaveBrowserRunning property");
+            this.AddKnownCapabilityName(ChromeOptions.DebuggerAddressChromeOption, "DebuggerAddress property");
+            this.AddKnownCapabilityName(ChromeOptions.ExcludeSwitchesChromeOption, "AddExcludedArgument property");
+            this.AddKnownCapabilityName(ChromeOptions.MinidumpPathChromeOption, "MinidumpPath property");
+            this.AddKnownCapabilityName(ChromeOptions.MobileEmulationChromeOption, "EnableMobileEmulation method");
+            this.AddKnownCapabilityName(ChromeOptions.PerformanceLoggingPreferencesChromeOption, "PerformanceLoggingPreferences property");
+            this.AddKnownCapabilityName(ChromeOptions.WindowTypesChromeOption, "AddWindowTypes method");
+            this.AddKnownCapabilityName(ChromeOptions.UseSpecCompliantProtocolOption, "UseSpecCompliantProtocol property");
+            this.AddKnownCapabilityName(ChromeOptions.ForceAlwaysMatchCapabilityName, "");
+        }
 
         /// <summary>
         /// Gets or sets the location of the Chrome browser's binary executable file.
@@ -108,15 +134,6 @@ namespace OpenQA.Selenium.Chrome
         {
             get { return this.leaveBrowserRunning; }
             set { this.leaveBrowserRunning = value; }
-        }
-
-        /// <summary>
-        /// Gets or sets the proxy to use with this instance of Chrome.
-        /// </summary>
-        public Proxy Proxy
-        {
-            get { return this.proxy; }
-            set { this.proxy = value; }
         }
 
         /// <summary>
@@ -172,6 +189,17 @@ namespace OpenQA.Selenium.Chrome
         {
             get { return this.perfLoggingPreferences; }
             set { this.perfLoggingPreferences = value; }
+        }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the <see cref="ChromeDriver"/> instance
+        /// should use the legacy OSS protocol dialect or a dialect compliant with the W3C
+        /// WebDriver Specification.
+        /// </summary>
+        public bool UseSpecCompliantProtocol
+        {
+            get { return this.useSpecCompliantProtocol; }
+            set { this.useSpecCompliantProtocol = value; }
         }
 
         /// <summary>
@@ -311,7 +339,7 @@ namespace OpenQA.Selenium.Chrome
                 throw new ArgumentException("extension must not be null or empty", "extension");
             }
 
-            this.AddExtensions(extension);
+            this.AddEncodedExtensions(extension);
         }
 
         /// <summary>
@@ -467,6 +495,27 @@ namespace OpenQA.Selenium.Chrome
         /// Provides a means to add additional capabilities not yet added as type safe options
         /// for the Chrome driver.
         /// </summary>
+        /// <param name="optionName">The name of the capability to add.</param>
+        /// <param name="optionValue">The value of the capability to add.</param>
+        /// <exception cref="ArgumentException">
+        /// thrown when attempting to add a capability for which there is already a type safe option, or
+        /// when <paramref name="optionName"/> is <see langword="null"/> or the empty string.
+        /// </exception>
+        /// <remarks>Calling <see cref="AddAdditionalChromeOption(string, object)"/>
+        /// where <paramref name="optionName"/> has already been added will overwrite the
+        /// existing value with the new value in <paramref name="optionValue"/>.
+        /// Calling this method adds capabilities to the Chrome-specific options object passed to
+        /// chromedriver.exe (property name 'goog:chromeOptions').</remarks>
+        public void AddAdditionalChromeOption(string optionName, object optionValue)
+        {
+            this.ValidateCapabilityName(optionName);
+            this.additionalChromeOptions[optionName] = optionValue;
+        }
+
+        /// <summary>
+        /// Provides a means to add additional capabilities not yet added as type safe options
+        /// for the Chrome driver.
+        /// </summary>
         /// <param name="capabilityName">The name of the capability to add.</param>
         /// <param name="capabilityValue">The value of the capability to add.</param>
         /// <exception cref="ArgumentException">
@@ -478,6 +527,7 @@ namespace OpenQA.Selenium.Chrome
         /// existing value with the new value in <paramref name="capabilityValue"/>.
         /// Also, by default, calling this method adds capabilities to the options object passed to
         /// chromedriver.exe.</remarks>
+        [Obsolete("Use the temporary AddAdditionalOption method or the AddAdditionalChromeOption method for adding additional options")]
         public override void AddAdditionalCapability(string capabilityName, object capabilityValue)
         {
             // Add the capability to the chromeOptions object by default. This is to handle
@@ -501,41 +551,16 @@ namespace OpenQA.Selenium.Chrome
         /// <remarks>Calling <see cref="AddAdditionalCapability(string, object, bool)"/>
         /// where <paramref name="capabilityName"/> has already been added will overwrite the
         /// existing value with the new value in <paramref name="capabilityValue"/></remarks>
+        [Obsolete("Use the temporary AddAdditionalOption method or the AddAdditionalChromeOption method for adding additional options")]
         public void AddAdditionalCapability(string capabilityName, object capabilityValue, bool isGlobalCapability)
         {
-            if (capabilityName == ChromeOptions.Capability ||
-                capabilityName == CapabilityType.Proxy ||
-                capabilityName == CapabilityType.LoggingPreferences ||
-                capabilityName == ChromeOptions.ArgumentsChromeOption ||
-                capabilityName == ChromeOptions.BinaryChromeOption ||
-                capabilityName == ChromeOptions.ExtensionsChromeOption ||
-                capabilityName == ChromeOptions.LocalStateChromeOption ||
-                capabilityName == ChromeOptions.PreferencesChromeOption ||
-                capabilityName == ChromeOptions.DetachChromeOption ||
-                capabilityName == ChromeOptions.DebuggerAddressChromeOption ||
-                capabilityName == ChromeOptions.ExtensionsChromeOption ||
-                capabilityName == ChromeOptions.ExcludeSwitchesChromeOption ||
-                capabilityName == ChromeOptions.MinidumpPathChromeOption ||
-                capabilityName == ChromeOptions.MobileEmulationChromeOption ||
-                capabilityName == ChromeOptions.PerformanceLoggingPreferencesChromeOption ||
-                capabilityName == ChromeOptions.WindowTypesChromeOption)
-            {
-                string message = string.Format(CultureInfo.InvariantCulture, "There is already an option for the {0} capability. Please use that instead.", capabilityName);
-                throw new ArgumentException(message, "capabilityName");
-            }
-
-            if (string.IsNullOrEmpty(capabilityName))
-            {
-                throw new ArgumentException("Capability name may not be null an empty string.", "capabilityName");
-            }
-
             if (isGlobalCapability)
             {
-                this.additionalCapabilities[capabilityName] = capabilityValue;
+                this.AddAdditionalOption(capabilityName, capabilityValue);
             }
             else
             {
-                this.additionalChromeOptions[capabilityName] = capabilityValue;
+                this.AddAdditionalChromeOption(capabilityName, capabilityValue);
             }
         }
 
@@ -549,13 +574,8 @@ namespace OpenQA.Selenium.Chrome
         {
             Dictionary<string, object> chromeOptions = this.BuildChromeOptionsDictionary();
 
-            DesiredCapabilities capabilities = DesiredCapabilities.Chrome();
+            IWritableCapabilities capabilities = this.GenerateDesiredCapabilities(false);
             capabilities.SetCapability(ChromeOptions.Capability, chromeOptions);
-
-            if (this.proxy != null)
-            {
-                capabilities.SetCapability(CapabilityType.Proxy, this.proxy);
-            }
 
             Dictionary<string, object> loggingPreferences = this.GenerateLoggingPreferencesDictionary();
             if (loggingPreferences != null)
@@ -563,12 +583,7 @@ namespace OpenQA.Selenium.Chrome
                 capabilities.SetCapability(CapabilityType.LoggingPreferences, loggingPreferences);
             }
 
-            foreach (KeyValuePair<string, object> pair in this.additionalCapabilities)
-            {
-                capabilities.SetCapability(pair.Key, pair.Value);
-            }
-
-            return capabilities;
+            return capabilities.AsReadOnly();
         }
 
         private Dictionary<string, object> BuildChromeOptionsDictionary()
@@ -603,6 +618,11 @@ namespace OpenQA.Selenium.Chrome
             if (this.leaveBrowserRunning)
             {
                 chromeOptions[DetachChromeOption] = this.leaveBrowserRunning;
+            }
+
+            if (this.useSpecCompliantProtocol)
+            {
+                chromeOptions[UseSpecCompliantProtocolOption] = this.useSpecCompliantProtocol;
             }
 
             if (!string.IsNullOrEmpty(this.debuggerAddress))
@@ -648,7 +668,6 @@ namespace OpenQA.Selenium.Chrome
             Dictionary<string, object> perfLoggingPrefsDictionary = new Dictionary<string, object>();
             perfLoggingPrefsDictionary["enableNetwork"] = this.perfLoggingPreferences.IsCollectingNetworkEvents;
             perfLoggingPrefsDictionary["enablePage"] = this.perfLoggingPreferences.IsCollectingPageEvents;
-            perfLoggingPrefsDictionary["enableTimeline"] = this.perfLoggingPreferences.IsCollectingTimelineEvents;
 
             string tracingCategories = this.perfLoggingPreferences.TracingCategories;
             if (!string.IsNullOrEmpty(tracingCategories))

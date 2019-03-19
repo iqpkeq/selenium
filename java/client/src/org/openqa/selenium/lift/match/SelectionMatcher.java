@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 package org.openqa.selenium.lift.match;
 
 import org.hamcrest.Description;
@@ -34,6 +33,7 @@ public class SelectionMatcher extends TypeSafeMatcher<WebElement> {
     return item.isSelected();
   }
 
+  @Override
   public void describeTo(Description description) {
     description.appendText("should be selected");
   }

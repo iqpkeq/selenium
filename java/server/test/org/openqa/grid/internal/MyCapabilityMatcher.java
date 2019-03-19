@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 package org.openqa.grid.internal;
 
 import org.openqa.grid.internal.utils.CapabilityMatcher;
@@ -24,7 +23,9 @@ import java.util.Map;
 
 public class MyCapabilityMatcher implements CapabilityMatcher{
 
-  public boolean matches(Map<String, Object> currentCapability,
+  @Override
+  public boolean matches(
+      Map<String, Object> currentCapability,
       Map<String, Object> requestedCapability) {
     return false;
   }

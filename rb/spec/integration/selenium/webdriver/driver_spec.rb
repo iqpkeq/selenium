@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -22,6 +22,10 @@ require_relative 'spec_helper'
 module Selenium
   module WebDriver
     describe Driver do
+      it_behaves_like 'driver that can be started concurrently', except: [{browser: :edge},
+                                                                          {driver: :safari},
+                                                                          {browser: :safari_preview}]
+
       it 'should get the page title' do
         driver.navigate.to url_for('xhtmlTest.html')
         expect(driver.title).to eq('XHTML Test Page')
@@ -38,21 +42,34 @@ module Selenium
         driver.find_element(id: 'updatediv').click
         expect(driver.find_element(id: 'dynamo').text).to eq('Fish and chips!')
         driver.navigate.refresh
+        wait_for_element(id: 'dynamo')
         expect(driver.find_element(id: 'dynamo').text).to eq("What's for dinner?")
       end
 
       context 'screenshots' do
         it 'should save' do
           driver.navigate.to url_for('xhtmlTest.html')
-          path = 'screenshot_tmp.png'
+          path = "#{Dir.tmpdir}/test#{SecureRandom.urlsafe_base64}.png"
 
-          begin
-            driver.save_screenshot path
-            expect(File.exist?(path)).to be true # sic
-            expect(File.size(path)).to be > 0
-          ensure
-            File.delete(path) if File.exist?(path)
-          end
+          save_screenshot_and_assert(path)
+        end
+
+        it 'should warn if extension of provided path is not png' do
+          driver.navigate.to url_for('xhtmlTest.html')
+          path = "#{Dir.tmpdir}/test#{SecureRandom.urlsafe_base64}.jpg"
+          message = "name used for saved screenshot does not match file type. "\
+                    "It should end with .png extension"
+          expect(WebDriver.logger).to receive(:warn).with(message)
+
+          save_screenshot_and_assert(path)
+        end
+
+        it 'should not warn if extension of provided path is png' do
+          driver.navigate.to url_for('xhtmlTest.html')
+          path = "#{Dir.tmpdir}/test#{SecureRandom.urlsafe_base64}.PNG"
+          expect(WebDriver.logger).not_to receive(:warn)
+
+          save_screenshot_and_assert(path)
         end
 
         it 'should return in the specified format' do
@@ -60,11 +77,19 @@ module Selenium
 
           ss = driver.screenshot_as(:png)
           expect(ss).to be_kind_of(String)
-          expect(ss.size).to be > 0
+          expect(ss.size).to be_positive
         end
 
         it 'raises an error when given an unknown format' do
           expect { driver.screenshot_as(:jpeg) }.to raise_error(WebDriver::Error::UnsupportedOperationError)
+        end
+
+        def save_screenshot_and_assert(path)
+          driver.save_screenshot path
+          expect(File.exist?(path)).to be true
+          expect(File.size(path)).to be_positive
+        ensure
+          File.delete(path) if File.exist?(path)
         end
       end
 
@@ -81,7 +106,13 @@ module Selenium
           expect(driver.find_element(name: 'x').attribute('value')).to eq('name')
         end
 
-        it 'should find by class name' do
+        it 'should find by class name' do # rubocop:disable RSpec/RepeatedExample
+          driver.navigate.to url_for('xhtmlTest.html')
+          expect(driver.find_element(class: 'header').text).to eq('XHTML Might Be The Future')
+        end
+
+        # TODO: Rewrite this test so it's not a duplicate of above or remove
+        it 'should find elements with a hash selector' do # rubocop:disable RSpec/RepeatedExample
           driver.navigate.to url_for('xhtmlTest.html')
           expect(driver.find_element(class: 'header').text).to eq('XHTML Might Be The Future')
         end
@@ -122,11 +153,6 @@ module Selenium
           child = element.find_element(tag_name: 'select')
 
           expect(child.attribute('id')).to eq('2')
-        end
-
-        it 'should find elements with a hash selector' do
-          driver.navigate.to url_for('xhtmlTest.html')
-          expect(driver.find_element(class: 'header').text).to eq('XHTML Might Be The Future')
         end
 
         it 'should find elements with the shortcut syntax' do
@@ -176,13 +202,13 @@ module Selenium
 
         it 'should unwrap elements in deep objects' do
           driver.navigate.to url_for('xhtmlTest.html')
-          result = driver.execute_script(<<-SCRIPT)
-      var e1 = document.getElementById('id1');
-      var body = document.body;
+          result = driver.execute_script(<<~SCRIPT)
+            var e1 = document.getElementById('id1');
+            var body = document.body;
 
-      return {
-        elements: {'body' : body, other: [e1] }
-      };
+            return {
+              elements: {'body' : body, other: [e1] }
+            };
           SCRIPT
 
           expect(result).to be_kind_of(Hash)
@@ -195,14 +221,9 @@ module Selenium
           expect(driver.execute_script('return true;')).to eq(true)
         end
 
-        # https://github.com/SeleniumHQ/selenium/issues/3337
-        not_compliant_on driver: :remote, platform: :macosx do
-          not_compliant_on browser: [:chrome, :phantomjs, :edge] do
-            it 'should raise if the script is bad' do
-              driver.navigate.to url_for('xhtmlTest.html')
-              expect { driver.execute_script('return squiggle();') }.to raise_error(Selenium::WebDriver::Error::JavascriptError)
-            end
-          end
+        it 'should raise if the script is bad', except: {browser: %i[edge]} do
+          driver.navigate.to url_for('xhtmlTest.html')
+          expect { driver.execute_script('return squiggle();') }.to raise_error(Selenium::WebDriver::Error::JavascriptError)
         end
 
         it 'should return arrays' do
@@ -255,34 +276,28 @@ module Selenium
         end
       end
 
-      not_compliant_on browser: :phantomjs do
-        describe 'execute async script' do
-          before do
-            driver.manage.timeouts.script_timeout = 0
-            driver.navigate.to url_for('ajaxy_page.html')
-          end
+      describe 'execute async script' do
+        before do
+          driver.manage.timeouts.script_timeout = 1
+          driver.navigate.to url_for('ajaxy_page.html')
+        end
 
-          it 'should be able to return arrays of primitives from async scripts' do
-            result = driver.execute_async_script "arguments[arguments.length - 1]([null, 123, 'abc', true, false]);"
-            expect(result).to eq([nil, 123, 'abc', true, false])
-          end
+        it 'should be able to return arrays of primitives from async scripts' do
+          result = driver.execute_async_script "arguments[arguments.length - 1]([null, 123, 'abc', true, false]);"
+          expect(result).to eq([nil, 123, 'abc', true, false])
+        end
 
-          it 'should be able to pass multiple arguments to async scripts' do
-            result = driver.execute_async_script 'arguments[arguments.length - 1](arguments[0] + arguments[1]);', 1, 2
-            expect(result).to eq(3)
-          end
+        it 'should be able to pass multiple arguments to async scripts' do
+          result = driver.execute_async_script 'arguments[arguments.length - 1](arguments[0] + arguments[1]);', 1, 2
+          expect(result).to eq(3)
+        end
 
-          # Edge BUG - https://connect.microsoft.com/IE/feedback/details/1849991/
-          not_compliant_on browser: :edge do
-            not_compliant_on driver: :remote, platform: :macosx do
-              it 'times out if the callback is not invoked' do
-                expect do
-                  # Script is expected to be async and explicitly callback, so this should timeout.
-                  driver.execute_async_script 'return 1 + 2;'
-                end.to raise_error(Selenium::WebDriver::Error::ScriptTimeoutError)
-              end
-            end
-          end
+        # Edge BUG - https://connect.microsoft.com/IE/feedback/details/1849991/
+        it 'times out if the callback is not invoked', except: [{browser: :edge}] do
+          expect {
+            # Script is expected to be async and explicitly callback, so this should timeout.
+            driver.execute_async_script 'return 1 + 2;'
+          }.to raise_error(Selenium::WebDriver::Error::ScriptTimeoutError)
         end
       end
     end

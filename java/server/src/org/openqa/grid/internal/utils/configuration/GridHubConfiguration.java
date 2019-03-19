@@ -17,57 +17,28 @@
 
 package org.openqa.grid.internal.utils.configuration;
 
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonObject;
-import com.google.gson.TypeAdapter;
-import com.google.gson.annotations.Expose;
-import com.google.gson.stream.JsonReader;
-import com.google.gson.stream.JsonWriter;
+import static java.util.Optional.ofNullable;
 
-import com.beust.jcommander.Parameter;
+import com.google.common.annotations.VisibleForTesting;
 
-import org.openqa.grid.common.JSONConfigurationUtils;
 import org.openqa.grid.common.exception.GridConfigurationException;
+import org.openqa.grid.internal.cli.GridHubCliOptions;
 import org.openqa.grid.internal.listeners.Prioritizer;
 import org.openqa.grid.internal.utils.CapabilityMatcher;
 import org.openqa.grid.internal.utils.DefaultCapabilityMatcher;
-import org.openqa.grid.internal.utils.configuration.converters.StringToClassConverter;
-import org.openqa.grid.internal.utils.configuration.validators.FileExistsValueValidator;
+import org.openqa.grid.internal.utils.configuration.json.HubJsonConfiguration;
+import org.openqa.selenium.json.JsonInput;
 
-import java.io.IOException;
+import java.util.Map;
 
 public class GridHubConfiguration extends GridConfiguration {
-  public static final String DEFAULT_HUB_CONFIG_FILE = "defaults/DefaultHub.json";
+  public static final String DEFAULT_HUB_CONFIG_FILE = "org/openqa/grid/common/defaults/DefaultHub.json";
 
-  /*
-   * IMPORTANT - Keep these constant values in sync with the ones specified in
-   * 'defaults/DefaultHub.json'  -- if for no other reasons documentation & consistency.
-   */
+  private static HubJsonConfiguration DEFAULT_CONFIG_FROM_JSON
+      = HubJsonConfiguration.loadFromResourceOrFile(DEFAULT_HUB_CONFIG_FILE);
 
-  /**
-   * Default hub role
-   */
-  static final String DEFAULT_ROLE = "hub";
-
-  /**
-   * Default hub port
-   */
-  static final Integer DEFAULT_PORT = 4444;
-
-  /**
-   * Default hub cleanup cycle
-   */
-  static final Integer DEFAULT_CLEANUP_CYCLE = 5000;
-
-  /**
-   * Default hub new session wait timeout
-   */
-  static final Integer DEFAULT_NEW_SESSION_WAIT_TIMEOUT = -1;
-
-  /**
-   * Default hub throw on capability not present toggle
-   */
-  static final Boolean DEFAULT_THROW_ON_CAPABILITY_NOT_PRESENT_TOGGLE = true;
+  @VisibleForTesting
+  static final String ROLE = "hub";
 
   /*
    * config parameters which do not serialize or de-serialize
@@ -76,11 +47,6 @@ public class GridHubConfiguration extends GridConfiguration {
   /**
    * Hub specific json config file to use. Defaults to {@code null}.
    */
-  @Parameter(
-    names = "-hubConfig",
-    description =  "<String> filename: a JSON file (following grid2 format), which defines the hub properties",
-    validateValueWith = FileExistsValueValidator.class
-  )
   public String hubConfig;
 
   /*
@@ -90,82 +56,96 @@ public class GridHubConfiguration extends GridConfiguration {
   /**
    * Capability matcher to use. Defaults to {@link DefaultCapabilityMatcher}
    */
-  @Expose
-  @Parameter(
-    names = { "-matcher", "-capabilityMatcher" },
-    description = "<String> class name : a class implementing the CapabilityMatcher interface. Specifies the logic the hub will follow to define whether a request can be assigned to a node. For example, if you want to have the matching process use regular expressions instead of exact match when specifying browser version. ALL nodes of a grid ecosystem would then use the same capabilityMatcher, as defined here.",
-    converter = StringToClassConverter.CapabilityMatcherStringConverter.class
-  )
-  public CapabilityMatcher capabilityMatcher = new DefaultCapabilityMatcher();
+  public CapabilityMatcher capabilityMatcher;
 
   /**
    * Timeout for new session requests. Defaults to unlimited.
    */
-  @Expose
-  @Parameter(
-    names = "-newSessionWaitTimeout",
-    description = "<Integer> in ms : The time after which a new test waiting for a node to become available will time out. When that happens, the test will throw an exception before attempting to start a browser. An unspecified, zero, or negative value means wait indefinitely."
-  )
-  public Integer newSessionWaitTimeout = DEFAULT_NEW_SESSION_WAIT_TIMEOUT;
+  public Integer newSessionWaitTimeout;
 
   /**
    * Prioritizer for new honoring session requests based on some priority. Defaults to {@code null}.
    */
-  @Expose
-  @Parameter(
-    names = "-prioritizer",
-    description = "<String> class name : a class implementing the Prioritizer interface. Specify a custom Prioritizer if you want to sort the order in which new session requests are processed when there is a queue. Default to null ( no priority = FIFO )",
-    converter = StringToClassConverter.PrioritizerStringConverter.class
-  )
   public Prioritizer prioritizer;
 
   /**
    * Whether to throw an Exception when there are no capabilities available that match the request. Defaults to {@code true}.
    */
-  @Expose
-  @Parameter(
-    names = "-throwOnCapabilityNotPresent",
-    description = "<Boolean> true or false : If true, the hub will reject all test requests if no compatible proxy is currently registered. If set to false, the request will queue until a node supporting the capability is registered with the grid.",
-    arity = 1
-  )
-  public Boolean throwOnCapabilityNotPresent = DEFAULT_THROW_ON_CAPABILITY_NOT_PRESENT_TOGGLE;
+  public Boolean throwOnCapabilityNotPresent;
+
+  public String registry;
+
+  private String[] rawArgs;
+  private String configFile;
 
   /**
    * Creates a new configuration using the default values.
    */
   public GridHubConfiguration() {
-    // overrides values set by base classes
-    role = DEFAULT_ROLE;
-    port = DEFAULT_PORT;
-    cleanUpCycle = DEFAULT_CLEANUP_CYCLE;
+    this(DEFAULT_CONFIG_FROM_JSON);
+  }
+
+  public GridHubConfiguration(HubJsonConfiguration jsonConfig) {
+    super(jsonConfig);
+    role = ROLE;
+    cleanUpCycle = ofNullable(jsonConfig.getCleanUpCycle())
+        .orElse(DEFAULT_CONFIG_FROM_JSON.getCleanUpCycle());
+    newSessionWaitTimeout = ofNullable(jsonConfig.getNewSessionWaitTimeout())
+        .orElse(DEFAULT_CONFIG_FROM_JSON.getNewSessionWaitTimeout());
+    throwOnCapabilityNotPresent = ofNullable(jsonConfig.getThrowOnCapabilityNotPresent())
+        .orElse(DEFAULT_CONFIG_FROM_JSON.getThrowOnCapabilityNotPresent());
+    registry = ofNullable(jsonConfig.getRegistry())
+        .orElse(DEFAULT_CONFIG_FROM_JSON.getRegistry());
+    capabilityMatcher = ofNullable(jsonConfig.getCapabilityMatcher())
+        .orElse(DEFAULT_CONFIG_FROM_JSON.getCapabilityMatcher());
+    prioritizer = ofNullable(jsonConfig.getPrioritizer())
+        .orElse(DEFAULT_CONFIG_FROM_JSON.getPrioritizer());
+  }
+
+  public GridHubConfiguration(GridHubCliOptions hubOptions) {
+    this(ofNullable(hubOptions.getConfigFile()).map(HubJsonConfiguration::loadFromResourceOrFile)
+             .orElse(DEFAULT_CONFIG_FROM_JSON));
+    super.merge(hubOptions.getCommonGridOptions());
+    this.configFile = hubOptions.getConfigFile();
+    ofNullable(hubOptions.getNewSessionWaitTimeout()).ifPresent(v -> newSessionWaitTimeout = v);
+    ofNullable(hubOptions.getThrowOnCapabilityNotPresent()).ifPresent(v -> throwOnCapabilityNotPresent = v);
+    ofNullable(hubOptions.getRegistry()).ifPresent(v -> registry = v);
+    ofNullable(hubOptions.getCapabilityMatcher()).ifPresent(v -> capabilityMatcher = v);
+    ofNullable(hubOptions.getPrioritizer()).ifPresent(v -> prioritizer = v);
   }
 
   /**
    * @param filePath hub config json file to load configuration from
    */
   public static GridHubConfiguration loadFromJSON(String filePath) {
-    return loadFromJSON(JSONConfigurationUtils.loadJSON(filePath));
+    return loadFromJSON(StandaloneConfiguration.loadJsonFromResourceOrFile(filePath));
   }
 
-  /**
-   * @param json JsonObject to load configuration from
-   */
-  public static GridHubConfiguration loadFromJSON(JsonObject json) {
+  public static GridHubConfiguration loadFromJSON(JsonInput jsonInput) {
     try {
-      GsonBuilder builder = new GsonBuilder();
-      GridHubConfiguration.staticAddJsonTypeAdapter(builder);
-      return builder.excludeFieldsWithoutExposeAnnotation().create()
-        .fromJson(json, GridHubConfiguration.class);
+      GridHubConfiguration fromJson = new GridHubConfiguration(HubJsonConfiguration.loadFromJson(jsonInput));
+      GridHubConfiguration result = new GridHubConfiguration(); // defaults
+      result.merge(fromJson);
+      // copy non-mergeable fields
+      if (fromJson.host != null) {
+        result.host = fromJson.host;
+      }
+      if (fromJson.port != null) {
+        result.port = fromJson.port;
+      }
+      return result;
     } catch (Throwable e) {
-      throw new GridConfigurationException("Error with the JSON of the config : " + e.getMessage(),
-                                           e);
+      throw new GridConfigurationException("Error with the JSON of the config : " + e.getMessage(), e);
     }
   }
 
   /**
    * Merge this configuration with the specified {@link GridNodeConfiguration}
    * @param other
+   *
+   * @deprecated There is no use case to merge a node configuration to a hub configuration
    */
+  @Deprecated
   public void merge(GridNodeConfiguration other) {
     super.merge(other);
   }
@@ -180,18 +160,32 @@ public class GridHubConfiguration extends GridConfiguration {
     }
     super.merge(other);
 
-    if (isMergeAble(other.capabilityMatcher, capabilityMatcher)) {
+    if (isMergeAble(CapabilityMatcher.class, other.capabilityMatcher, capabilityMatcher)) {
       capabilityMatcher = other.capabilityMatcher;
     }
-    if (isMergeAble(other.newSessionWaitTimeout, newSessionWaitTimeout)) {
+    if (isMergeAble(Integer.class, other.newSessionWaitTimeout, newSessionWaitTimeout)) {
       newSessionWaitTimeout = other.newSessionWaitTimeout;
     }
-    if (isMergeAble(other.prioritizer, prioritizer)) {
+    if (isMergeAble(Prioritizer.class, other.prioritizer, prioritizer)) {
       prioritizer = other.prioritizer;
     }
-    if (isMergeAble(other.throwOnCapabilityNotPresent, throwOnCapabilityNotPresent)) {
+    if (isMergeAble(Boolean.class, other.throwOnCapabilityNotPresent, throwOnCapabilityNotPresent)) {
       throwOnCapabilityNotPresent = other.throwOnCapabilityNotPresent;
     }
+    if (isMergeAble(String.class, other.registry, registry)) {
+      registry = other.registry;
+    }
+  }
+
+  @Override
+  protected void serializeFields(Map<String, Object> appendTo) {
+    super.serializeFields(appendTo);
+
+    appendTo.put("capabilityMatcher", capabilityMatcher.getClass().getName());
+    appendTo.put("newSessionWaitTimeout", newSessionWaitTimeout);
+    appendTo.put("prioritizer", prioritizer == null ?  null : prioritizer.getClass().getName());
+    appendTo.put("throwOnCapabilityNotPresent", throwOnCapabilityNotPresent);
+    appendTo.put("registry", registry);
   }
 
   @Override
@@ -203,38 +197,20 @@ public class GridHubConfiguration extends GridConfiguration {
     sb.append(toString(format, "newSessionWaitTimeout", newSessionWaitTimeout));
     sb.append(toString(format, "prioritizer", prioritizer != null ? prioritizer.getClass().getCanonicalName(): null));
     sb.append(toString(format, "throwOnCapabilityNotPresent", throwOnCapabilityNotPresent));
+    sb.append(toString(format, "registry", registry));
+
     return sb.toString();
   }
 
-  @Override
-  protected void addJsonTypeAdapter(GsonBuilder builder) {
-    super.addJsonTypeAdapter(builder);
-    GridHubConfiguration.staticAddJsonTypeAdapter(builder);
-  }
-  protected static void staticAddJsonTypeAdapter(GsonBuilder builder) {
-    builder.registerTypeAdapter(CapabilityMatcher.class, new CapabilityMatcherAdapter().nullSafe());
-    builder.registerTypeAdapter(Prioritizer.class, new PrioritizerAdapter().nullSafe());
+  public void setRawArgs(String[] rawArgs) {
+    this.rawArgs = rawArgs;
   }
 
-  protected static class SimpleClassNameAdapter<T> extends TypeAdapter<T> {
-    @Override
-    public void write(JsonWriter out, T value) throws IOException {
-      out.value(value.getClass().getCanonicalName());
-    }
-    @Override
-    public T read(JsonReader in) throws IOException {
-      String value = in.nextString();
-      try {
-        return (T) Class.forName(value).newInstance();
-      } catch (Exception e) {
-        throw new RuntimeException(String.format("String %s could not be coerced to class: %s", value, Class.class.getName()), e);
-      }
-    }
+  public String[] getRawArgs() {
+    return rawArgs;
   }
 
-  protected static class CapabilityMatcherAdapter extends SimpleClassNameAdapter<CapabilityMatcher> {
-  }
-
-  protected static class PrioritizerAdapter extends SimpleClassNameAdapter<Prioritizer> {
+  public String getConfigFile() {
+    return configFile;
   }
 }

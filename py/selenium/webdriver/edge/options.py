@@ -16,11 +16,13 @@
 # under the License.
 
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
+from selenium.webdriver.common.options import BaseOptions
 
 
-class Options(object):
+class Options(BaseOptions):
 
     def __init__(self):
+        super(Options, self).__init__()
         self._page_load_strategy = "normal"
 
     @property
@@ -35,11 +37,15 @@ class Options(object):
 
     def to_capabilities(self):
         """
-            Creates a capabilities with all the options that have been set and
+        Creates a capabilities with all the options that have been set and
 
-            returns a dictionary with everything
+        :Returns: A dictionary with everything
         """
-        edge = DesiredCapabilities.EDGE.copy()
-        edge['pageLoadStrategy'] = self._page_load_strategy
+        caps = self._caps
+        caps['pageLoadStrategy'] = self._page_load_strategy
 
-        return edge
+        return caps
+
+    @property
+    def default_capabilities(self):
+        return DesiredCapabilities.EDGE.copy()

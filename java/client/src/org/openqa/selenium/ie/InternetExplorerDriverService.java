@@ -17,10 +17,13 @@
 
 package org.openqa.selenium.ie;
 
+import com.google.auto.service.AutoService;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
+import org.openqa.selenium.Capabilities;
 import org.openqa.selenium.WebDriverException;
+import org.openqa.selenium.remote.BrowserType;
 import org.openqa.selenium.remote.service.DriverService;
 
 import java.io.File;
@@ -50,7 +53,10 @@ public class InternetExplorerDriverService extends DriverService {
 
   /**
    * System property that defines the implementation of the driver engine to use.
+   *
+   * @deprecated There are no more multiple IE driver engines
    */
+  @Deprecated
   public static final String IE_DRIVER_ENGINE_PROPERTY = "webdriver.ie.driver.engine";
 
   /**
@@ -90,22 +96,35 @@ public class InternetExplorerDriverService extends DriverService {
    * @return A new InternetExplorerDriverService using the default configuration.
    */
   public static InternetExplorerDriverService createDefaultService() {
-    return new Builder().usingAnyFreePort().build();
+    return new Builder().build();
   }
 
   /**
    * Builder used to configure new {@link InternetExplorerDriverService} instances.
    */
+  @AutoService(DriverService.Builder.class)
   public static class Builder extends DriverService.Builder<
       InternetExplorerDriverService, InternetExplorerDriverService.Builder> {
 
     private InternetExplorerDriverLogLevel logLevel;
-    private InternetExplorerDriverEngine engineImplementation;
     private String host = null;
     private File extractPath = null;
     private Boolean silent = null;
-    private Boolean forceCreateProcess = null;
-    private String ieSwitches = null;
+
+    @Override
+    public int score(Capabilities capabilites) {
+      int score = 0;
+
+      if (BrowserType.IE.equals(capabilites.getBrowserName())) {
+        score++;
+      }
+
+      if (capabilites.getCapability(InternetExplorerOptions.IE_OPTIONS) != null) {
+        score++;
+      }
+
+      return score;
+    }
 
     /**
      * Configures the logging level for the driver server.
@@ -115,17 +134,6 @@ public class InternetExplorerDriverService extends DriverService {
      */
     public Builder withLogLevel(InternetExplorerDriverLogLevel logLevel) {
       this.logLevel = logLevel;
-      return this;
-    }
-
-    /**
-     * Configures the driver engine implementation for the driver server.
-     *
-     * @param engineImplementation The engine implementation to be used.
-     * @return A self reference.
-     */
-    public Builder withEngineImplementation(InternetExplorerDriverEngine engineImplementation) {
-      this.engineImplementation = engineImplementation;
       return this;
     }
 
@@ -154,7 +162,7 @@ public class InternetExplorerDriverService extends DriverService {
     /**
      * Configures silence in stdout of the driver server by unlogged messages.
      *
-     * @param silent To be silent in stdout ir not.
+     * @param silent To be silent in stdout or not.
      * @return A self reference.
      */
     public Builder withSilent(Boolean silent) {
@@ -183,12 +191,6 @@ public class InternetExplorerDriverService extends DriverService {
           logLevel = InternetExplorerDriverLogLevel.valueOf(level);
         }
       }
-      if (engineImplementation == null) {
-        String engineToUse = System.getProperty(IE_DRIVER_ENGINE_PROPERTY);
-        if (engineToUse != null) {
-          engineImplementation = InternetExplorerDriverEngine.valueOf(engineToUse);
-        }
-      }
       if (host == null) {
         String hostProperty = System.getProperty(IE_DRIVER_HOST_PROPERTY);
         if (hostProperty != null) {
@@ -215,9 +217,6 @@ public class InternetExplorerDriverService extends DriverService {
       }
       if (logLevel != null) {
         argsBuilder.add(String.format("--log-level=%s", logLevel.toString()));
-      }
-      if (engineImplementation != null) {
-        argsBuilder.add(String.format("--implementation=%s", engineImplementation.toString()));
       }
       if (host != null) {
         argsBuilder.add(String.format("--host=%s", host));

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using NUnit.Framework;
 
 namespace OpenQA.Selenium.Html5
@@ -6,9 +6,9 @@ namespace OpenQA.Selenium.Html5
     [TestFixture]
     public class AppCacheTest : DriverTestFixture
     {
-        [Test]
-        [IgnoreBrowser(Browser.Android, "Untested feature")]
-        public void TestAppCacheStatus()
+        //[Test]
+		[IgnoreBrowser(Browser.Safari, "Unimplemented feature")]
+		public void TestAppCacheStatus()
         {
             driver.Url = html5Page;
             driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromMilliseconds(2000);

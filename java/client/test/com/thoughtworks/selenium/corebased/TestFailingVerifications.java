@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 package com.thoughtworks.selenium.corebased;
 
 import com.thoughtworks.selenium.InternalSelenseTestBase;
@@ -24,7 +23,7 @@ import org.junit.Test;
 
 public class TestFailingVerifications extends InternalSelenseTestBase {
   @Test
-  public void testFailingVerifications() throws Exception {
+  public void testFailingVerifications() {
     selenium.open("../tests/html/test_verifications.html");
     try {
       assertTrue(selenium.getLocation().matches(

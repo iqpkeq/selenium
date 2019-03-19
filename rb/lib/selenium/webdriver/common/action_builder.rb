@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -321,7 +321,7 @@ module Selenium
       def drag_and_drop(source, target)
         click_and_hold source
         move_to        target
-        release        target
+        release
 
         self
       end

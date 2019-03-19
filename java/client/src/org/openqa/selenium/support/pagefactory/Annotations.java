@@ -18,12 +18,15 @@
 package org.openqa.selenium.support.pagefactory;
 
 import org.openqa.selenium.By;
+import org.openqa.selenium.support.AbstractFindByBuilder;
 import org.openqa.selenium.support.ByIdOrName;
 import org.openqa.selenium.support.CacheLookup;
 import org.openqa.selenium.support.FindAll;
 import org.openqa.selenium.support.FindBy;
 import org.openqa.selenium.support.FindBys;
+import org.openqa.selenium.support.PageFactoryFinder;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 
 public class Annotations extends AbstractAnnotations {
@@ -41,6 +44,7 @@ public class Annotations extends AbstractAnnotations {
    *
    * @return true if @CacheLookup annotation exists on a field
    */
+  @Override
   public boolean isLookupCached() {
     return (field.getAnnotation(CacheLookup.class) != null);
   }
@@ -54,24 +58,27 @@ public class Annotations extends AbstractAnnotations {
    * no annotations provided for field, uses field name as 'id' or 'name'.
    * @throws IllegalArgumentException when more than one annotation on a field provided
    */
+  @Override
   public By buildBy() {
     assertValidAnnotations();
 
     By ans = null;
 
-    FindBys findBys = field.getAnnotation(FindBys.class);
-    if (findBys != null) {
-      ans = buildByFromFindBys(findBys);
-    }
-
-    FindAll findAll = field.getAnnotation(FindAll.class);
-    if (ans == null && findAll != null) {
-      ans = buildBysFromFindByOneOf(findAll);
-    }
-
-    FindBy findBy = field.getAnnotation(FindBy.class);
-    if (ans == null && findBy != null) {
-      ans = buildByFromFindBy(findBy);
+    for (Annotation annotation : field.getDeclaredAnnotations()) {
+      AbstractFindByBuilder builder = null;
+      if (annotation.annotationType().isAnnotationPresent(PageFactoryFinder.class)) {
+        try {
+          builder = annotation.annotationType()
+              .getAnnotation(PageFactoryFinder.class).value()
+              .newInstance();
+        } catch (ReflectiveOperationException e) {
+          // Fall through.
+        }
+      }
+      if (builder != null) {
+        ans = builder.buildIt(annotation, field);
+        break;
+      }
     }
 
     if (ans == null) {

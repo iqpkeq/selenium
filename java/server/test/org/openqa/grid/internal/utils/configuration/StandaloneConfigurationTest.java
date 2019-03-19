@@ -24,63 +24,76 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 
 import com.beust.jcommander.JCommander;
 
 import org.junit.Test;
+import org.openqa.grid.internal.cli.StandaloneCliOptions;
+import org.openqa.grid.internal.utils.configuration.json.StandaloneJsonConfiguration;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class StandaloneConfigurationTest {
 
+  static final Integer DEFAULT_TIMEOUT = 1800;
+  static final Integer DEFAULT_BROWSER_TIMEOUT = 0;
+  static final String DEFAULT_HOST = "0.0.0.0";
+  static final Integer DEFAULT_PORT = 4444;
+  static final Boolean DEFAULT_DEBUG_TOGGLE = false;
+
   @Test
   public void testDefaults() {
-    StandaloneConfiguration sc = new StandaloneConfiguration();
-    assertEquals(StandaloneConfiguration.DEFAULT_ROLE, sc.role);
-    assertEquals(StandaloneConfiguration.DEFAULT_BROWSER_TIMEOUT, sc.browserTimeout);
-    assertEquals(StandaloneConfiguration.DEFAULT_DEBUG_TOGGLE, sc.debug);
-    assertEquals(StandaloneConfiguration.DEFAULT_TIMEOUT, sc.timeout);
-    assertFalse(sc.help);
+    checkDefaults(new StandaloneConfiguration());
+  }
+
+  @Test
+  public void testConstructorEqualsDefaultConfig() {
+    checkDefaults(new StandaloneConfiguration(
+        StandaloneJsonConfiguration.loadFromResourceOrFile(StandaloneConfiguration.DEFAULT_STANDALONE_CONFIG_FILE)));
+  }
+
+  @Test
+  public void testDefaultsFromCli() {
+    checkDefaults(new StandaloneConfiguration(new StandaloneCliOptions()));
+  }
+
+  private void checkDefaults(StandaloneConfiguration sc) {
+    assertEquals(StandaloneConfiguration.ROLE, sc.role);
+    assertEquals(DEFAULT_BROWSER_TIMEOUT, sc.browserTimeout);
+    assertEquals(DEFAULT_DEBUG_TOGGLE, sc.debug);
+    assertEquals(DEFAULT_TIMEOUT, sc.timeout);
+    assertEquals(DEFAULT_PORT, sc.port);
+    assertEquals(DEFAULT_HOST, sc.host);
     assertNull(sc.jettyMaxThreads);
     assertNull(sc.log);
   }
 
   @Test
-  public void testConstructorEqualsDefaultConfig() {
-    StandaloneConfiguration actual = new StandaloneConfiguration();
-    StandaloneConfiguration expected =
-      StandaloneConfiguration.loadFromJSON(StandaloneConfiguration.DEFAULT_STANDALONE_CONFIG_FILE);
-
-    assertEquals(expected.role, actual.role);
-    assertEquals(expected.browserTimeout, actual.browserTimeout);
-    assertEquals(expected.debug, actual.debug);
-    assertEquals(expected.timeout, actual.timeout);
-    assertEquals(expected.help, actual.help);
-    assertEquals(expected.jettyMaxThreads, actual.jettyMaxThreads);
-    assertEquals(expected.log, actual.log);
-  }
-
-  @Test
-  public void commandLineParsing() throws Exception {
-    StandaloneConfiguration sc = new StandaloneConfiguration();
+  public void commandLineParsing() {
     String[] args = "-timeout 32123 -browserTimeout 456".split(" ");
-    new JCommander(sc, args);
+    StandaloneCliOptions options = new StandaloneCliOptions();
+    JCommander.newBuilder().addObject(options).build().parse(args);
+    StandaloneConfiguration sc = new StandaloneConfiguration(options);
     assertEquals(32123, sc.timeout.intValue());
     assertEquals(456, sc.browserTimeout.intValue());
   }
 
   @Test
-  public void testSetTimeout() throws Exception {
+  public void testSetTimeout() {
     StandaloneConfiguration sc = new StandaloneConfiguration();
     sc.timeout = 123;
     assertEquals(123, sc.timeout.intValue());
   }
 
   @Test
-  public void testSetBrowserTimeout() throws Exception {
+  public void testSetBrowserTimeout() {
     StandaloneConfiguration sc = new StandaloneConfiguration();
     sc.browserTimeout = 1233;
     assertEquals(1233, sc.browserTimeout.intValue());
@@ -91,57 +104,59 @@ public class StandaloneConfigurationTest {
     StandaloneConfiguration sc = new StandaloneConfiguration();
 
     // can't merge null onto null
-    assertFalse(sc.isMergeAble(null, null));
+    assertFalse(sc.isMergeAble(String.class,null, null));
 
     // test with Character
-    assertTrue(sc.isMergeAble('a','a'));
-    assertTrue(sc.isMergeAble('a', 'b'));
-    assertTrue(sc.isMergeAble('a', null));
-    assertFalse(sc.isMergeAble(null, 'b'));
+    assertTrue(sc.isMergeAble(Character.class,'a','a'));
+    assertTrue(sc.isMergeAble(Character.class, 'a', 'b'));
+    assertTrue(sc.isMergeAble(Character.class, 'a', null));
+    assertFalse(sc.isMergeAble(Character.class, null, 'b'));
 
     // test with Integer
-    assertTrue(sc.isMergeAble(1, 1));
-    assertTrue(sc.isMergeAble(1, 2));
-    assertTrue(sc.isMergeAble(1, null));
-    assertFalse(sc.isMergeAble(null, 2));
+    assertTrue(sc.isMergeAble(Integer.class,1, 1));
+    assertTrue(sc.isMergeAble(Integer.class,1, 2));
+    assertTrue(sc.isMergeAble(Integer.class,1, null));
+    assertFalse(sc.isMergeAble(Integer.class,null, 2));
 
     // test with Boolean
-    assertTrue(sc.isMergeAble(true, true));
-    assertTrue(sc.isMergeAble(true, false));
-    assertTrue(sc.isMergeAble(true, null));
-    assertFalse(sc.isMergeAble(null, false));
+    assertTrue(sc.isMergeAble(Boolean.class, true, true));
+    assertTrue(sc.isMergeAble(Boolean.class, true, false));
+    assertTrue(sc.isMergeAble(Boolean.class, true, null));
+    assertFalse(sc.isMergeAble(Boolean.class, null, false));
 
     // test with String
-    assertTrue(sc.isMergeAble("a", "a"));
-    assertTrue(sc.isMergeAble("a", "b"));
-    assertTrue(sc.isMergeAble("a", null));
-    assertFalse(sc.isMergeAble(null, "b"));
+    assertTrue(sc.isMergeAble(String.class, "a", "a"));
+    assertTrue(sc.isMergeAble(String.class, "a", "b"));
+    assertTrue(sc.isMergeAble(String.class, "a", null));
+    assertFalse(sc.isMergeAble(String.class, null, "b"));
 
     // test with Collections
-    assertTrue(sc.isMergeAble(Arrays.asList(new String[]{"a", "b"}),
-                              Arrays.asList(new String[]{"b", "c"})));
-    assertTrue(sc.isMergeAble(Arrays.asList(new String[]{"a", "b"}),
-                              Arrays.asList(new String[]{"a", "b"})));
-    assertTrue(sc.isMergeAble(Arrays.asList(new String[]{"b", "c"}), Arrays.asList()));
-    assertTrue(sc.isMergeAble(Arrays.asList(new String[]{"b", "c"}), null));
-    assertFalse(sc.isMergeAble(Arrays.asList(), Arrays.asList(new String[]{"b", "c"})));
-    assertFalse(sc.isMergeAble(null, Arrays.asList(new String[]{"b", "c"})));
+    assertTrue(sc.isMergeAble(List.class,
+                              Arrays.asList("a", "b"),
+                              Arrays.asList("b", "c")));
+    assertTrue(sc.isMergeAble(List.class,
+                              Arrays.asList("a", "b"),
+                              Arrays.asList("a", "b")));
+    assertTrue(sc.isMergeAble(List.class, Arrays.asList("b", "c"), Collections.emptyList()));
+    assertTrue(sc.isMergeAble(List.class, Arrays.asList("b", "c"), null));
+    assertFalse(sc.isMergeAble(List.class, Collections.emptyList(), Arrays.asList("b", "c")));
+    assertFalse(sc.isMergeAble(List.class, null, Arrays.asList("b", "c")));
 
     // test with Maps
     Map<String, Integer> map = new ImmutableMap.Builder<String, Integer>()
       .put("one", 1).put("two", 2).build();
     Map<String, Integer> map2 = new ImmutableMap.Builder<String, Integer>()
       .put("three", 3).put("four", 4).build();
-    assertTrue(sc.isMergeAble(map, map));
-    assertTrue(sc.isMergeAble(map, map2));
-    assertTrue(sc.isMergeAble(map, null));
+    assertTrue(sc.isMergeAble(Map.class, map, map));
+    assertTrue(sc.isMergeAble(Map.class, map, map2));
+    assertTrue(sc.isMergeAble(Map.class, map, null));
 
     Map<String, Integer> map3 = new HashMap<>();
     map3.put("five", 5);
-    assertTrue(sc.isMergeAble(map3, Maps.newHashMap()));
+    assertTrue(sc.isMergeAble(Map.class, map3, new HashMap<>()));
 
-    assertFalse(sc.isMergeAble(new ImmutableMap.Builder<String, Integer>().build(), map3));
-    assertFalse(sc.isMergeAble(null, map3));
+    assertFalse(sc.isMergeAble(Map.class, new ImmutableMap.Builder<String, Integer>().build(), map3));
+    assertFalse(sc.isMergeAble(Map.class, null, map3));
   }
 
   @Test
@@ -150,7 +165,6 @@ public class StandaloneConfigurationTest {
     StandaloneConfiguration other = new StandaloneConfiguration();
     other.browserTimeout = 5000;
     other.debug = true;
-    other.help = true;
     other.jettyMaxThreads = 1000;
     other.log = "foo.log";
     other.port = 4321;
@@ -165,8 +179,22 @@ public class StandaloneConfigurationTest {
     assertNotEquals(other.debug, sc.debug);
     assertNotEquals(other.port, sc.port);
     assertNotEquals(other.log, sc.log);
-    assertNotEquals(other.help, sc.help);
     assertNotEquals(other.role, sc.role);
+  }
+
+  @Test
+  public void testLoadFromFile() throws IOException {
+    String json = "{\"role\":\"standalone\", \"port\":1234, \"debug\":true, \"timeout\":1800, \"browserTimeout\":2400, \"jettyMaxThreads\":10}";
+    Path nodeConfig = Files.createTempFile("standalone", ".json");
+    Files.write(nodeConfig, json.getBytes());
+
+    StandaloneConfiguration sc = new StandaloneConfiguration(StandaloneJsonConfiguration.loadFromResourceOrFile(json));
+
+    assertEquals(1234, sc.port.intValue());
+    assertEquals(true, sc.debug);
+    assertEquals(1800, sc.timeout.intValue());
+    assertEquals(2400, sc.browserTimeout.intValue());
+    assertEquals(10, sc.jettyMaxThreads.intValue());
   }
 
 }

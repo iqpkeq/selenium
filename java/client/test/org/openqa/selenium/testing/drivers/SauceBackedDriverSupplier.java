@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 package org.openqa.selenium.testing.drivers;
 
 import org.openqa.selenium.Capabilities;
@@ -33,6 +32,7 @@ public class SauceBackedDriverSupplier implements Supplier<WebDriver> {
     this.capabilities = caps;
   }
 
+  @Override
   public WebDriver get() {
     if (!SauceDriver.shouldUseSauce()) {
       return null;

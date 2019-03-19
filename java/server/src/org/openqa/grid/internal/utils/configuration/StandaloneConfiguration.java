@@ -17,115 +17,60 @@
 
 package org.openqa.grid.internal.utils.configuration;
 
+import static com.google.common.collect.ImmutableSortedMap.toImmutableSortedMap;
+import static com.google.common.collect.Ordering.natural;
+import static java.util.Optional.ofNullable;
+
 import com.google.common.annotations.VisibleForTesting;
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.annotations.Expose;
+import com.google.common.collect.ImmutableSet;
 
-import com.beust.jcommander.Parameter;
-
-import org.openqa.grid.common.JSONConfigurationUtils;
+import org.openqa.grid.common.GridConfiguredJson;
 import org.openqa.grid.common.exception.GridConfigurationException;
+import org.openqa.grid.internal.cli.CommonCliOptions;
+import org.openqa.grid.internal.cli.StandaloneCliOptions;
+import org.openqa.grid.internal.utils.configuration.json.CommonJsonConfiguration;
+import org.openqa.grid.internal.utils.configuration.json.StandaloneJsonConfiguration;
+import org.openqa.selenium.grid.config.ConfigValue;
+import org.openqa.selenium.json.Json;
+import org.openqa.selenium.json.JsonInput;
+import org.openqa.selenium.json.TypeCoercer;
 
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
 public class StandaloneConfiguration {
-  public static final String DEFAULT_STANDALONE_CONFIG_FILE = "defaults/DefaultStandalone.json";
+  public static final String DEFAULT_STANDALONE_CONFIG_FILE = "org/openqa/grid/common/defaults/DefaultStandalone.json";
 
-  /*
-   * IMPORTANT - Keep these constant values in sync with the ones specified in
-   * 'defaults/DefaultStandalone.json'  -- if for no other reasons documentation & consistency.
-   */
+  private static StandaloneJsonConfiguration DEFAULT_CONFIG_FROM_JSON
+      = StandaloneJsonConfiguration.loadFromResourceOrFile(DEFAULT_STANDALONE_CONFIG_FILE);
 
-  /**
-   * Default client timeout
-   */
   @VisibleForTesting
-  static final Integer DEFAULT_TIMEOUT = 1800;
-
-  /**
-   * Default browser timeout
-   */
-  @VisibleForTesting
-  static final Integer DEFAULT_BROWSER_TIMEOUT = 0;
-
-  /**
-   * Default standalone role
-   */
-  @VisibleForTesting
-  static final String DEFAULT_ROLE = "standalone";
-
-  /**
-   * Default standalone port
-   */
-  @VisibleForTesting
-  static final Integer DEFAULT_PORT = 4444;
-
-  /**
-   * Default state of LogeLevel.FINE log output toggle
-   */
-  @VisibleForTesting
-  static final Boolean DEFAULT_DEBUG_TOGGLE = false;
-
-
-  /*
-   * config parameters which do not serialize or deserialize to/from json
-   */
-
-  @Parameter(
-      names = {"--version", "-version"},
-      description = "Displays the version and exits."
-  )
-  // initially defaults to false from boolean primitive type
-  public boolean version;
+  static final String ROLE = "standalone";
 
   /*
    * config parameters which do not serialize to json
    */
-
-  @Expose( serialize = false )
-  @Parameter(
-    names = {"-avoidProxy"},
-    description = "DO NOT USE: Hack to allow selenium 3.0 server run in SauceLabs",
-    hidden = true
-  )
   // initially defaults to false from boolean primitive type
   private boolean avoidProxy;
 
-  @Expose( serialize = false )
-  @Parameter(
-    names = "-browserSideLog",
-    description = "DO NOT USE: Provided for compatibility with 2.0",
-    hidden = true
-  )
   // initially defaults to false from boolean primitive type
   private boolean browserSideLog;
 
-  @Expose( serialize = false )
-  @Parameter(
-    names = "-captureLogsOnQuit",
-    description = "DO NOT USE: Provided for compatibility with 2.0",
-    hidden = true
-  )
   // initially defaults to false from boolean primitive type
   private boolean captureLogsOnQuit;
-
-  @Expose( serialize = false )
-  @Parameter(
-    names = {"--help", "-help", "-h"},
-    help = true,
-    hidden = true,
-    description = "Displays this help."
-  )
-  /**
-   * Whether help or usage() is requested. Default {@code false}.
-   */
-  // initially defaults to false from boolean primitive type
-  public boolean help;
 
   /*
    * config parameters which serialize and deserialize to/from json
@@ -134,145 +79,132 @@ public class StandaloneConfiguration {
   /**
    * Browser timeout. Default 0 (indefinite wait).
    */
-  @Expose
-  @Parameter(
-    names = "-browserTimeout",
-    description = "<Integer> in seconds : number of seconds a browser session is allowed to hang while a WebDriver command is running (example: driver.get(url)). If the timeout is reached while a WebDriver command is still processing, the session will quit. Minimum value is 60. An unspecified, zero, or negative value means wait indefinitely."
-  )
-  public Integer browserTimeout = DEFAULT_BROWSER_TIMEOUT;
+  public Integer browserTimeout;
 
   /**
    * Enable {@code LogLevel.FINE} log messages. Default {@code false}.
    */
-  @Expose
-  @Parameter(
-    names = "-debug",
-    description = "<Boolean> : enables LogLevel.FINE."
-  )
-  public Boolean debug = DEFAULT_DEBUG_TOGGLE;
+  public Boolean debug;
 
   /**
    *   Max threads for Jetty. Defaults to {@code null}.
    */
-  @Expose
-  @Parameter(
-    names = {"-jettyThreads", "-jettyMaxThreads"},
-    description = "<Integer> : max number of threads for Jetty. An unspecified, zero, or negative value means the Jetty default value (200) will be used."
-  )
+  @ConfigValue(section = "server", name = "max-threads")
   public Integer jettyMaxThreads;
 
   /**
    *   Filename to use for logging. Defaults to {@code null}.
    */
-  @Expose
-  @Parameter(
-    names = "-log",
-    description = "<String> filename : the filename to use for logging. If omitted, will log to STDOUT"
-  )
   public String log;
+
+  /**
+   * Hostname or IP to use. Defaults to {@code null}. Automatically determined when {@code null}.
+   */
+  // initially defaults to null from type
+  @ConfigValue(section = "server", name = "hostname")
+  public String host;
 
   /**
    * Port to bind to. Default determined by configuration type.
    */
-  @Expose
-  @Parameter(
-    names = {"-port"},
-    description = "<Integer> : the port number the server will use."
-  )
-  public Integer port = DEFAULT_PORT;
+  @ConfigValue(section = "server", name = "port")
+  public Integer port;
 
   /**
    * Server role. Default determined by configuration type.
    */
-  @Expose
-  @Parameter(
-    names = "-role",
-    description = "<String> options are [hub], [node], or [standalone]."
-  )
-  public String role = DEFAULT_ROLE;
+  public String role;
 
   /**
    * Client timeout. Default 1800 sec.
    */
-  @Expose
-  @Parameter(
-    names = {"-timeout", "-sessionTimeout"},
-    description = "<Integer> in seconds : Specifies the timeout before the server automatically kills a session that hasn't had any activity in the last X seconds. The test slot will then be released for another test to use. This is typically used to take care of client crashes. For grid hub/node roles, cleanUpCycle must also be set."
-  )
-  public Integer timeout = DEFAULT_TIMEOUT;
-
-  /**
-   * Whether or not to use experimental passthrough mode on a hub or a standalone
-   */
-  @Expose
-  @Parameter(
-      names = "-enablePassThrough",
-      description = "<Boolean>: Whether or not to use the experimental passthrough mode. Defaults to false."
-  )
-  // initially defaults to false from boolean primitive type
-  public boolean enablePassThrough;
-
+  public Integer timeout;
 
   /**
    * Creates a new configuration using the default values.
    */
   public StandaloneConfiguration() {
-    // nothing to do.
+    this(DEFAULT_CONFIG_FROM_JSON);
   }
 
-  /**
-   * @param filePath node config json file to load configuration from
-   */
-  public static StandaloneConfiguration loadFromJSON(String filePath) {
-    return loadFromJSON(JSONConfigurationUtils.loadJSON(filePath));
+  public StandaloneConfiguration(CommonJsonConfiguration jsonConfig) {
+    this.role = ROLE;
+    this.debug = jsonConfig.getDebug();
+    this.log = jsonConfig.getLog();
+    host = ofNullable(jsonConfig.getHost()).orElse("0.0.0.0");
+    this.port = jsonConfig.getPort();
+    this.timeout = jsonConfig.getTimeout();
+    this.browserTimeout = jsonConfig.getBrowserTimeout();
+    this.jettyMaxThreads = jsonConfig.getJettyMaxThreads();
   }
 
-  /**
-   * @param json JsonObject to load configuration from
-   */
-  public static StandaloneConfiguration loadFromJSON(JsonObject json) {
-    try {
-      GsonBuilder builder = new GsonBuilder();
-      StandaloneConfiguration config =
-        builder.excludeFieldsWithoutExposeAnnotation().create().fromJson(json, StandaloneConfiguration.class);
-      return config;
-    } catch (Throwable e) {
-      throw new GridConfigurationException("Error with the JSON of the config : " + e.getMessage(),
-                                           e);
+  public StandaloneConfiguration(StandaloneCliOptions cliConfig) {
+    this(ofNullable(cliConfig.getConfigFile()).map(StandaloneJsonConfiguration::loadFromResourceOrFile)
+             .orElse(DEFAULT_CONFIG_FROM_JSON));
+    merge(cliConfig.getCommonOptions());
+  }
+
+  void merge(CommonCliOptions cliConfig) {
+    ofNullable(cliConfig.getDebug()).ifPresent(v -> debug = v);
+    ofNullable(cliConfig.getLog()).ifPresent(v -> log = v);
+    ofNullable(cliConfig.getHost()).ifPresent(v -> host = v);
+    ofNullable(cliConfig.getPort()).ifPresent(v -> port = v);
+    ofNullable(cliConfig.getTimeout()).ifPresent(v -> timeout = v);
+    ofNullable(cliConfig.getBrowserTimeout()).ifPresent(v -> browserTimeout = v);
+    ofNullable(cliConfig.getJettyMaxThreads()).ifPresent(v -> jettyMaxThreads = v);
+  }
+
+  public static<T extends StandaloneConfiguration> T loadFromJson(String resource, Class<T> type) {
+    try (JsonInput jsonInput = loadJsonFromResourceOrFile(resource)) {
+      return loadFromJson(jsonInput, type);
     }
   }
 
+  public static<T extends StandaloneConfiguration> T loadFromJson(JsonInput jsonInput, Class<T> type) {
+    try {
+      return GridConfiguredJson.toType(jsonInput, type);
+    } catch (GridConfigurationException e) {
+      throw e;
+    } catch (Throwable e) {
+      throw new GridConfigurationException(e.getMessage(), e);
+    }
+  }
+
+  protected Collection<TypeCoercer<?>> getCoercers() {
+    return ImmutableSet.of();
+  };
+
   /**
    * copy another configuration's values into this one if they are set.
-   * @param other
    */
   public void merge(StandaloneConfiguration other) {
     if (other == null) {
       return;
     }
 
-    if (isMergeAble(other.browserTimeout, browserTimeout)) {
+    if (isMergeAble(Integer.class, other.browserTimeout, browserTimeout)) {
       browserTimeout = other.browserTimeout;
     }
-    if (isMergeAble(other.jettyMaxThreads, jettyMaxThreads)) {
+    if (isMergeAble(Integer.class, other.jettyMaxThreads, jettyMaxThreads)) {
       jettyMaxThreads = other.jettyMaxThreads;
     }
-    if (isMergeAble(other.timeout, timeout)) {
+    if (isMergeAble(Integer.class, other.timeout, timeout)) {
       timeout = other.timeout;
     }
-    // role, port, log, debug, version, enablePassThrough, and help are not merged, they are only consumed by the
-    // immediately running process and should never affect a remote
+    // role, host, port, log, debug, version, enablePassThrough, and help are not merged,
+    // they are only consumed by the immediately running process and should never affect a remote
   }
 
   /**
    * Determines if one object can be merged onto another object. Checks for {@code null},
    * and empty (Collections & Maps) to make decision.
    *
-   * @param other the object to merge. must be the same type as the 'target'
-   * @param target the object to merge on to. must be the same type as the 'other'
-   * @return whether the 'other' can be merged onto the 'target'
+   * @param targetType The type that both {@code other} and {@code target} must be assignable to.
+   * @param other the object to merge. must be the same type as the 'target'.
+   * @param target the object to merge on to. must be the same type as the 'other'.
+   * @return whether the 'other' can be merged onto the 'target'.
    */
-  protected boolean isMergeAble(Object other, Object target) {
+  protected boolean isMergeAble(Class<?> targetType, Object other, Object target) {
     // don't merge a null value
     if (other == null) {
       return false;
@@ -285,9 +217,8 @@ public class StandaloneConfiguration {
 
     // we know we have two objects with value.. Make sure the types are the same and
     // perform additional checks.
-
-    if (! target.getClass().getSuperclass().getTypeName()
-        .equals(other.getClass().getSuperclass().getTypeName())) {
+    if (!targetType.isAssignableFrom(target.getClass()) ||
+        !targetType.isAssignableFrom(other.getClass())) {
       return false;
     }
 
@@ -306,13 +237,12 @@ public class StandaloneConfiguration {
     StringBuilder sb = new StringBuilder();
     sb.append(toString(format, "browserTimeout", browserTimeout));
     sb.append(toString(format, "debug", debug));
-    sb.append(toString(format, "help", help));
     sb.append(toString(format, "jettyMaxThreads", jettyMaxThreads));
     sb.append(toString(format, "log", log));
+    sb.append(toString(format, "host", host));
     sb.append(toString(format, "port", port));
     sb.append(toString(format, "role", role));
     sb.append(toString(format, "timeout", timeout));
-    sb.append(toString(format, "enablePassThrough", enablePassThrough));
     return sb.toString();
   }
 
@@ -341,16 +271,64 @@ public class StandaloneConfiguration {
 
   /**
    * Return a JsonElement representation of the configuration. Does not serialize nulls.
-   * @return
    */
-  public JsonElement toJson() {
-    GsonBuilder builder = new GsonBuilder();
-    addJsonTypeAdapter(builder);
-    //Note: it's important that nulls ARE NOT serialized, for backwards compatibility
-    return builder.excludeFieldsWithoutExposeAnnotation().create().toJsonTree(this);
+  public Map<String, Object> toJson() {
+    Map<String, Object> json = new HashMap<>();
+    json.put("browserTimeout", browserTimeout);
+    json.put("debug", debug);
+    json.put("jettyMaxThreads", jettyMaxThreads);
+    json.put("log", log);
+    json.put("host", host);
+    json.put("port", port);
+    json.put("role", role);
+    json.put("timeout", timeout);
+
+    serializeFields(json);
+
+    return json.entrySet().stream()
+        .filter(entry -> entry.getValue() != null)
+        .collect(toImmutableSortedMap(natural(), Map.Entry::getKey, Map.Entry::getValue));
   }
 
-  protected void addJsonTypeAdapter(GsonBuilder builder) {
-    // no default implementation
+  protected void serializeFields(Map<String, Object> appendTo) {
+    // Do nothing here.
+  }
+
+  /**
+   * load a JSON file from the resource or file system. As a fallback, treats {@code resource} as a
+   * JSON string to be parsed.
+   *
+   * @param resource file or jar resource location
+   * @return A JsonObject representing the passed resource argument.
+   */
+  protected static JsonInput loadJsonFromResourceOrFile(String resource) {
+    try {
+      return new Json().newInput(readFileOrResource(resource));
+    } catch (RuntimeException e) {
+      throw new GridConfigurationException("Unable to read input", e);
+    }
+  }
+
+  private static Reader readFileOrResource(String resource) {
+    Stream<Function<String, InputStream>> suppliers = Stream.of(
+        (path) -> {
+          try {
+            return new FileInputStream(path);
+          } catch (FileNotFoundException e) {
+            return null;
+          } },
+        (path) -> Thread.currentThread().getContextClassLoader()
+            .getResourceAsStream("org/openqa/grid/common/" + path),
+        (path) -> Thread.currentThread().getContextClassLoader().getResourceAsStream(path),
+        (path) -> new ByteArrayInputStream(path.getBytes())
+    );
+
+    InputStream in = suppliers
+        .map(supplier -> supplier.apply(resource))
+        .filter(Objects::nonNull)
+        .findFirst()
+        .orElseThrow(() -> new RuntimeException(resource + " is not a valid resource."));
+
+    return new BufferedReader(new InputStreamReader(in));
   }
 }

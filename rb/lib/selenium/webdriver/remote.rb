@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -29,9 +29,7 @@ require 'selenium/webdriver/remote/http/default'
 require 'selenium/webdriver/remote/capabilities'
 require 'selenium/webdriver/remote/oss/bridge'
 require 'selenium/webdriver/remote/oss/commands'
-require 'selenium/webdriver/remote/oss/driver'
 
 require 'selenium/webdriver/remote/w3c/bridge'
 require 'selenium/webdriver/remote/w3c/capabilities'
 require 'selenium/webdriver/remote/w3c/commands'
-require 'selenium/webdriver/remote/w3c/driver'

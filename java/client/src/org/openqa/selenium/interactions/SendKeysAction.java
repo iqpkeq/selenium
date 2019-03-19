@@ -17,12 +17,11 @@
 
 package org.openqa.selenium.interactions;
 
-import com.google.common.collect.ImmutableList;
-
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.interactions.internal.KeysRelatedAction;
-import org.openqa.selenium.internal.Locatable;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -40,6 +39,10 @@ public class SendKeysAction extends KeysRelatedAction implements Action {
       Locatable locationProvider,
       CharSequence... keysToSend) {
     super(keyboard, mouse, locationProvider);
+
+    if (keysToSend == null || keysToSend.length == 0) {
+      throw new IllegalArgumentException("Keys should be a not null CharSequence");
+    }
     this.keysToSend = keysToSend;
   }
 
@@ -47,6 +50,7 @@ public class SendKeysAction extends KeysRelatedAction implements Action {
     this(keyboard, mouse, null, keysToSend);
   }
 
+  @Override
   public void perform() {
     focusOnElement();
 
@@ -55,9 +59,7 @@ public class SendKeysAction extends KeysRelatedAction implements Action {
 
   @Override
   public List<Interaction> asInteractions(PointerInput mouse, KeyInput keyboard) {
-    ImmutableList.Builder<Interaction> interactions = ImmutableList.builder();
-
-    optionallyClickElement(mouse, interactions);
+    List<Interaction> interactions = new ArrayList<>(optionallyClickElement(mouse));
 
     for (CharSequence keys : keysToSend) {
       keys.codePoints().forEach(codePoint -> {
@@ -66,6 +68,6 @@ public class SendKeysAction extends KeysRelatedAction implements Action {
       });
     }
 
-    return interactions.build();
+    return Collections.unmodifiableList(interactions);
   }
 }

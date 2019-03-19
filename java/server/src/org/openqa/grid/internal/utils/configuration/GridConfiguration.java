@@ -17,11 +17,10 @@
 
 package org.openqa.grid.internal.utils.configuration;
 
-import com.google.gson.annotations.Expose;
+import static java.util.Optional.ofNullable;
 
-import com.beust.jcommander.Parameter;
-
-import org.openqa.grid.internal.utils.configuration.converters.CustomConverter;
+import org.openqa.grid.internal.cli.CommonGridCliOptions;
+import org.openqa.grid.internal.utils.configuration.json.GridJsonConfiguration;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -30,7 +29,7 @@ import java.util.Map;
 
 import javax.servlet.Servlet;
 
-class GridConfiguration extends StandaloneConfiguration {
+public class GridConfiguration extends StandaloneConfiguration {
   /*
    * config parameters which serialize and deserialize to/from json
    */
@@ -38,65 +37,28 @@ class GridConfiguration extends StandaloneConfiguration {
   /**
    * Clean up cycle for remote proxies. Default determined by configuration type.
    */
-  @Expose
-  @Parameter(
-    names = "-cleanUpCycle",
-    description = "<Integer> in ms : specifies how often the hub will poll running proxies for timed-out (i.e. hung) threads. Must also specify \"timeout\" option"
-  )
   // initially defaults to null from type
   public Integer cleanUpCycle;
 
   /**
    * Custom key/value pairs for the hub registry. Default empty.
    */
-  @Expose
-  @Parameter(
-    names = "-custom",
-    description = "<String> : comma separated key=value pairs for custom grid extensions. NOT RECOMMENDED -- may be deprecated in a future revision. Example: -custom myParamA=Value1,myParamB=Value2",
-    converter = CustomConverter.class
-  )
   public Map<String, String> custom = new HashMap<>();
-
-  /**
-   * Hostname or IP to use. Defaults to {@code null}. Automatically determined when {@code null}.
-   */
-  @Expose
-  @Parameter(
-    names = "-host",
-    description =  "<String> IP or hostname : usually determined automatically. Most commonly useful in exotic network configurations (e.g. network with VPN)"
-  )
-  // initially defaults to null from type
-  public String host;
 
   /**
    * Max "browser" sessions a node can handle. Default determined by configuration type.
    */
-  @Expose
-  @Parameter(
-    names = "-maxSession",
-    description = "<Integer> max number of tests that can run at the same time on the node, irrespective of the browser used"
-  )
   // initially defaults to null from type
   public Integer maxSession;
 
   /**
    * Extra servlets to initialize/use on the hub or node. Default empty.
    */
-  @Expose
-  @Parameter(
-    names = {"-servlet", "-servlets"},
-    description = "<String> : list of extra servlets the grid (hub or node) will make available. Specify multiple on the command line: -servlet tld.company.ServletA -servlet tld.company.ServletB. The servlet must exist in the path: /grid/admin/ServletA /grid/admin/ServletB"
-  )
   public List<String> servlets = new ArrayList<>();
 
   /**
    * Default servlets to exclude on the hub or node. Default empty.
    */
-  @Expose
-  @Parameter(
-    names = {"-withoutServlet", "-withoutServlets"},
-    description = "<String> : list of default (hub or node) servlets to disable. Advanced use cases only. Not all default servlets can be disabled. Specify multiple on the command line: -withoutServlet tld.company.ServletA -withoutServlet tld.company.ServletB"
-  )
   public List<String> withoutServlets = new ArrayList<>();
 
   /**
@@ -104,6 +66,22 @@ class GridConfiguration extends StandaloneConfiguration {
    */
   GridConfiguration() {
     // defeats instantiation outside of this package
+  }
+
+  public GridConfiguration(GridJsonConfiguration jsonConfig) {
+    super(jsonConfig);
+    ofNullable(jsonConfig.getCustom()).ifPresent(v -> custom = new HashMap<>(v));
+    ofNullable(jsonConfig.getServlets()).ifPresent(v -> servlets = new ArrayList<>(v));
+    ofNullable(jsonConfig.getWithoutServlets()).ifPresent(v -> withoutServlets = new ArrayList<>(v));
+  }
+
+  void merge(CommonGridCliOptions cliConfig) {
+    super.merge(cliConfig.getCommonOptions());
+    ofNullable(cliConfig.getMaxSession()).ifPresent(v -> maxSession = v);
+    ofNullable(cliConfig.getCleanUpCycle()).ifPresent(v -> cleanUpCycle = v);
+    ofNullable(cliConfig.getServlets()).ifPresent(v -> servlets = v);
+    ofNullable(cliConfig.getWithoutServlets()).ifPresent(v -> withoutServlets = v);
+    ofNullable(cliConfig.getCustom()).ifPresent(v -> custom = v);
   }
 
   /**
@@ -116,24 +94,23 @@ class GridConfiguration extends StandaloneConfiguration {
     }
     super.merge(other);
 
-    // don't merge 'host'
-    if (isMergeAble(other.cleanUpCycle, cleanUpCycle)) {
+    if (isMergeAble(Integer.class, other.cleanUpCycle, cleanUpCycle)) {
       cleanUpCycle = other.cleanUpCycle;
     }
-    if (isMergeAble(other.custom, custom)) {
+    if (isMergeAble(Map.class, other.custom, custom)) {
       if (custom == null) {
         custom = new HashMap<>();
       }
       custom.putAll(other.custom);
     }
-    if (isMergeAble(other.maxSession, maxSession) &&
-        other.maxSession.intValue() > 0) {
+    if (isMergeAble(Integer.class, other.maxSession, maxSession) &&
+        other.maxSession > 0) {
       maxSession = other.maxSession;
     }
-    if (isMergeAble(other.servlets, servlets)) {
+    if (isMergeAble(List.class, other.servlets, servlets)) {
       servlets = other.servlets;
     }
-    if (isMergeAble(other.withoutServlets, withoutServlets)) {
+    if (isMergeAble(List.class, other.withoutServlets, withoutServlets)) {
       withoutServlets = other.withoutServlets;
     }
   }
@@ -149,12 +126,22 @@ class GridConfiguration extends StandaloneConfiguration {
   }
 
   @Override
+  protected void serializeFields(Map<String, Object> appendTo) {
+    super.serializeFields(appendTo);
+
+    appendTo.put("cleanUpCycle", cleanUpCycle);
+    appendTo.put("custom", custom);
+    appendTo.put("maxSession", maxSession);
+    appendTo.put("servlets", servlets);
+    appendTo.put("withoutServlets", withoutServlets);
+  }
+
+  @Override
   public String toString(String format) {
     StringBuilder sb = new StringBuilder();
     sb.append(super.toString(format));
     sb.append(toString(format, "cleanUpCycle", cleanUpCycle));
     sb.append(toString(format, "custom", custom));
-    sb.append(toString(format, "host", host));
     sb.append(toString(format, "maxSession", maxSession));
     sb.append(toString(format, "servlets", servlets));
     sb.append(toString(format, "withoutServlets", withoutServlets));

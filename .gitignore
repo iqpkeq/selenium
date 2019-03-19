@@ -6,6 +6,7 @@ projectFilesBackup/
 .buckconfig.local
 .nobuckcheck
 .credentials.dat
+.ijwb
 buck-out
 mockpiframe.log
 mockpiframe.log.lck
@@ -17,6 +18,7 @@ common/build
 /build/
 cpp/iedriver/IEReturnTypes.h
 java/client/src/org/openqa/selenium/ie/IeReturnTypes.java
+java/server/test/org/openqa/selenium/example
 javascript/deps.js
 javascript/node/selenium-webdriver/lib/atoms/
 javascript/node/selenium-webdriver/node_modules/
@@ -44,6 +46,9 @@ maven/*/target
 maven/.idea
 maven/*.iml
 maven/*/*.iml
+maven-metadata-.xml
+maven-metadata-.xml.sha1
+resolver-status.properties
 java/client/build/
 java/client/log.txt
 java/client/iedriver.log
@@ -60,6 +65,7 @@ py/selenium/webdriver/remote/getAttribute.js
 py/selenium/webdriver/remote/isDisplayed.js
 py/docs/build/
 py/build/
+py/LICENSE
 selenium.egg-info/
 third_party/java/jetty/jetty-repacked.jar
 *.user
@@ -72,6 +78,7 @@ obj/
 *.opendb
 *.VC.db
 *.aps
+launchSettings.json
 Generated/
 ipch/
 /iedriver.log
@@ -93,3 +100,14 @@ Gemfile.lock
 .idea/inspectionProfiles/Project_Default.xml
 .idea/misc.xml
 third_party/py/googlestorage/client_secrets.json
+venv
+venv3
+py/.idea
+
+# Bazel stuff
+bazel-bin
+bazel-genfiles
+bazel-out
+bazel-selenium
+bazel-testlogs
+

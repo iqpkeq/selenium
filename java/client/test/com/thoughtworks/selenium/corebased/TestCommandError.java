@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 package com.thoughtworks.selenium.corebased;
 
 import com.thoughtworks.selenium.InternalSelenseTestBase;
@@ -24,7 +23,7 @@ import org.junit.Test;
 
 public class TestCommandError extends InternalSelenseTestBase {
   @Test
-  public void testCommandError() throws Exception {
+  public void testCommandError() {
     selenium.open("../tests/html/test_verifications.html");
     try {
       selenium.click("notALink");

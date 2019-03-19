@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -34,7 +34,7 @@ module Selenium
       end
 
       def inspect
-        format '#<%s:0x%x id=%s>', self.class, hash * 2, @id.inspect
+        format '#<%<class>s:0x%<hash>x id=%<id>s>', class: self.class, hash: hash * 2, id: @id.inspect
       end
 
       def ==(other)
@@ -198,7 +198,7 @@ module Selenium
       #
 
       def displayed?
-        bridge.element_displayed? @id
+        bridge.element_displayed? self
       end
 
       #

@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -17,7 +17,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-require File.expand_path('../../spec_helper', __FILE__)
+require File.expand_path('../spec_helper', __dir__)
 
 module Selenium
   module WebDriver
@@ -40,8 +40,7 @@ module Selenium
               },
               capabilities: {
                 firstMatch: [{
-                  browserName: 'internet explorer',
-                  platformName: 'windows'
+                  browserName: 'internet explorer'
                 }]
               }
             )
@@ -51,6 +50,65 @@ module Selenium
               .and_return('status' => 200, 'sessionId' => 'foo', 'value' => {})
 
             Bridge.handshake(http_client: http, desired_capabilities: Capabilities.ie)
+          end
+
+          it 'passes Chrome options as capabilities' do
+            payload = JSON.generate(
+              desiredCapabilities: {
+                browserName: '',
+                version: '',
+                platform: 'ANY',
+                javascriptEnabled: false,
+                cssSelectorsEnabled: false,
+                takesScreenshot: false,
+                nativeEvents: false,
+                rotatable: false
+              },
+              capabilities: {
+                firstMatch: [{
+                  'goog:chromeOptions' => {
+                    args: %w[foo bar]
+                  }
+                }]
+              }
+            )
+
+            expect(http).to receive(:request)
+              .with(any_args, payload)
+              .and_return('status' => 200, 'sessionId' => 'foo', 'value' => {})
+
+            Bridge.handshake(http_client: http, options: Chrome::Options.new(args: %w[foo bar]))
+          end
+
+          it 'passes IE options as capabilities' do
+            payload = JSON.generate(
+              desiredCapabilities: {
+                browserName: 'internet explorer',
+                version: '',
+                platform: 'WINDOWS',
+                javascriptEnabled: false,
+                cssSelectorsEnabled: true,
+                takesScreenshot: true,
+                nativeEvents: true,
+                rotatable: false
+              },
+              capabilities: {
+                firstMatch: [{
+                  browserName: 'internet explorer',
+                  'se:ieOptions' => {
+                    nativeEvents: true,
+                    'ie.browserCommandLineSwitches' => '--host=127.0.0.1'
+                  }
+                }]
+              }
+            )
+
+            expect(http).to receive(:request)
+              .with(any_args, payload)
+              .and_return('status' => 200, 'sessionId' => 'foo', 'value' => {})
+
+            options = IE::Options.new(args: ['--host=127.0.0.1'], native_events: true)
+            Bridge.handshake(http_client: http, desired_capabilities: :ie, options: options)
           end
 
           it 'uses OSS bridge when necessary' do
@@ -73,7 +131,7 @@ module Selenium
 
           it 'supports responses with "value" capabilities' do
             allow(http).to receive(:request)
-              .and_return({'status' => 200, 'sessionId' => '', 'value' => {'browserName' => 'firefox'}})
+              .and_return('status' => 200, 'sessionId' => '', 'value' => {'browserName' => 'firefox'})
 
             bridge = Bridge.handshake(http_client: http, desired_capabilities: Capabilities.new)
             expect(bridge.capabilities[:browser_name]).to eq('firefox')

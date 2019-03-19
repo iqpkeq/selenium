@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 package com.thoughtworks.selenium.corebased;
 
 import com.thoughtworks.selenium.InternalSelenseTestBase;
@@ -24,7 +23,7 @@ import org.junit.Test;
 
 public class TestQuickOpen extends InternalSelenseTestBase {
   @Test
-  public void testQuickOpen() throws Exception {
+  public void testQuickOpen() {
     // <tr>
     // <td>setTimeout</td>
     // <td>5000</td>

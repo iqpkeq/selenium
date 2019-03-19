@@ -17,13 +17,11 @@
 
 package org.openqa.selenium.remote.http;
 
-import static com.google.common.base.Charsets.UTF_8;
 import static com.google.common.net.HttpHeaders.CONTENT_TYPE;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
+import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
-import com.google.common.collect.Multimaps;
 import com.google.common.io.ByteStreams;
 import com.google.common.net.MediaType;
 
@@ -33,16 +31,20 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.nio.charset.Charset;
-import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 class HttpMessage {
 
-  private final Multimap<String, String> headers = Multimaps.newListMultimap(
-      Maps.<String, Collection<String>>newHashMap(), Lists::newLinkedList);
+  private final Multimap<String, String> headers = ArrayListMultimap.create();
 
-  private final Map<String, Object> attributes = Maps.newHashMap();
+  private final Map<String, Object> attributes = new HashMap<>();
 
   private InputStream content = new ByteArrayInputStream(new byte[0]);
   private volatile byte[] readContent = null;
@@ -71,17 +73,29 @@ class HttpMessage {
   }
 
   public Iterable<String> getHeaders(String name) {
-    return headers.get(name);
+    return headers.entries().stream()
+        .filter(e -> Objects.nonNull(e.getKey()))
+        .filter(e -> e.getKey().equalsIgnoreCase(name.toLowerCase()))
+        .map(Map.Entry::getValue)
+        .collect(Collectors.toList());
   }
 
   public String getHeader(String name) {
-    Collection<String> values = headers.get(name);
-    return values.isEmpty() ? null : values.iterator().next();
+    Iterable<String> initialHeaders = getHeaders(name);
+    if (initialHeaders == null) {
+      return null;
+    }
+
+    Iterator<String> headers = initialHeaders.iterator();
+    if (headers.hasNext()) {
+      return headers.next();
+    }
+    return null;
   }
 
   public void setHeader(String name, String value) {
     removeHeader(name);
-    headers.put(name, value);
+    addHeader(name, value);
   }
 
   public void addHeader(String name, String value) {
@@ -114,6 +128,10 @@ class HttpMessage {
     this.content = toStreamFrom;
   }
 
+  /**
+   * @deprecated There is an expectation that this class caches all input, which leads to leaks.
+   */
+  @Deprecated
   public byte[] getContent() {
     if (readContent == null) {
       synchronized (this) {
@@ -132,6 +150,14 @@ class HttpMessage {
 
   public String getContentString() {
     return new String(getContent(), getContentEncoding());
+  }
+
+  public Reader getContentReader() {
+    return new InputStreamReader(getContentStream(), getContentEncoding());
+  }
+
+  public InputStream getContentStream() {
+    return new ByteArrayInputStream(getContent());
   }
 
   /**

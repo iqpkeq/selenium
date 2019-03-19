@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 package com.thoughtworks.selenium;
 
 import static org.junit.Assert.assertNotNull;
@@ -25,7 +24,7 @@ import org.junit.Test;
 public class CacheBlockTest extends InternalSelenseTestBase {
 
   @Test
-  public void testCacheBlock() throws Exception {
+  public void testCacheBlock() {
     selenium.open("/selenium-server/cachedContentTest");
     String text = selenium.getBodyText();
     assertNotNull("body text should not be null", text);

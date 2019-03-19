@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 package com.thoughtworks.selenium.corebased;
 
 import com.thoughtworks.selenium.InternalSelenseTestBase;
@@ -24,7 +23,7 @@ import org.junit.Test;
 
 public class TestErrorChecking extends InternalSelenseTestBase {
   @Test
-  public void testErrorChecking() throws Exception {
+  public void testErrorChecking() {
     selenium.open("../tests/html/test_click_page1.html");
     // These tests should all fail, as they are checking the error checking commands.
     try {

@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 package com.thoughtworks.selenium.corebased;
 
 import com.thoughtworks.selenium.InternalSelenseTestBase;
@@ -24,7 +23,7 @@ import org.junit.Test;
 
 public class TestSelect extends InternalSelenseTestBase {
   @Test
-  public void testSelect() throws Exception {
+  public void testSelect() {
     selenium.open("../tests/html/test_select.html");
     assertTrue(selenium.isSomethingSelected("theSelect"));
     assertEquals(selenium.getSelectedLabel("theSelect"), "Second Option");

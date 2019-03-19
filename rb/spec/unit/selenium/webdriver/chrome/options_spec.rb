@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -17,18 +17,18 @@
 # specific language governing permissions and limitations
 # under the License.
 
-require File.expand_path('../../spec_helper', __FILE__)
+require File.expand_path('../spec_helper', __dir__)
 
 module Selenium
   module WebDriver
     module Chrome
       describe Options do
-        subject(:options) { Options.new }
+        subject(:options) { described_class.new }
 
         describe '#initialize' do
           it 'sets passed args' do
             opt = Options.new(args: %w[foo bar])
-            expect(opt.args).to eq(%w[foo bar])
+            expect(opt.args.to_a).to eq(%w[foo bar])
           end
 
           it 'sets passed prefs' do
@@ -95,7 +95,14 @@ module Selenium
         describe '#add_argument' do
           it 'adds a command-line argument' do
             options.add_argument('foo')
-            expect(options.args).to include('foo')
+            expect(options.args.to_a).to eq(['foo'])
+          end
+        end
+
+        describe '#headless!' do
+          it 'should add necessary command-line arguments' do
+            options.headless!
+            expect(options.args.to_a).to eql(['--headless'])
           end
         end
 
@@ -115,8 +122,8 @@ module Selenium
 
         describe '#add_emulation' do
           it 'add an emulated device by name' do
-            options.add_emulation(device_name: 'Google Nexus 6')
-            expect(options.emulation).to eq(deviceName: 'Google Nexus 6')
+            options.add_emulation(device_name: 'iPhone 6')
+            expect(options.emulation).to eq(deviceName: 'iPhone 6')
           end
 
           it 'adds emulated device metrics' do
@@ -149,12 +156,12 @@ module Selenium
                                options: {foo: :bar},
                                emulation: {c: 3})
             json = opts.as_json
-            expect(json[:args]).to include('foo')
-            expect(json[:binary]).to eq('/foo/bar')
-            expect(json[:prefs]).to include(a: 1)
-            expect(json[:extensions]).to include('bar')
-            expect(json[:foo]).to eq(:bar)
-            expect(json[:mobileEmulation]).to include(c: 3)
+            expect(json['goog:chromeOptions'][:args]).to eq(['foo'])
+            expect(json['goog:chromeOptions'][:binary]).to eq('/foo/bar')
+            expect(json['goog:chromeOptions'][:prefs]).to include(a: 1)
+            expect(json['goog:chromeOptions'][:extensions]).to include('bar')
+            expect(json['goog:chromeOptions'][:foo]).to eq(:bar)
+            expect(json['goog:chromeOptions'][:mobileEmulation]).to include(c: 3)
           end
         end
       end # Options

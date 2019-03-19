@@ -34,6 +34,7 @@ class Command(object):
     NEW_SESSION = "newSession"
     GET_ALL_SESSIONS = "getAllSessions"
     DELETE_SESSION = "deleteSession"
+    NEW_WINDOW = "newWindow"
     CLOSE = "close"
     QUIT = "quit"
     GET = "get"
@@ -94,7 +95,6 @@ class Command(object):
     GET_ELEMENT_ATTRIBUTE = "getElementAttribute"
     GET_ELEMENT_PROPERTY = "getElementProperty"
     GET_ELEMENT_VALUE_OF_CSS_PROPERTY = "getElementValueOfCssProperty"
-    ELEMENT_EQUALS = "elementEquals"
     SCREENSHOT = "screenshot"
     ELEMENT_SCREENSHOT = "elementScreenshot"
     IMPLICIT_WAIT = "implicitlyWait"
@@ -105,6 +105,8 @@ class Command(object):
     W3C_MAXIMIZE_WINDOW = "w3cMaximizeWindow"
     GET_LOG = "getLog"
     GET_AVAILABLE_LOG_TYPES = "getAvailableLogTypes"
+    FULLSCREEN_WINDOW = "fullscreenWindow"
+    MINIMIZE_WINDOW = "minimizeWindow"
 
     # Alerts
     DISMISS_ALERT = "dismissAlert"

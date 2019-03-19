@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -24,8 +24,9 @@ module Selenium
         include Atoms
         include BridgeHelper
 
+        PORT = 4444
         COMMANDS = {
-          new_session: [:post, 'session'.freeze]
+          new_session: [:post, 'session']
         }.freeze
 
         attr_accessor :context, :http, :file_detector
@@ -41,9 +42,18 @@ module Selenium
         # @return [OSS:Bridge, W3C::Bridge]
         #
         def self.handshake(**opts)
-          desired_capabilities = opts.delete(:desired_capabilities)
+          desired_capabilities = opts.delete(:desired_capabilities) { Capabilities.new }
+
+          if desired_capabilities.is_a?(Symbol)
+            unless Capabilities.respond_to?(desired_capabilities)
+              raise Error::WebDriverError, "invalid desired capability: #{desired_capabilities.inspect}"
+            end
+
+            desired_capabilities = Capabilities.__send__(desired_capabilities)
+          end
+
           bridge = new(opts)
-          capabilities = bridge.create_session(desired_capabilities)
+          capabilities = bridge.create_session(desired_capabilities, opts.delete(:options))
 
           case bridge.dialect
           when :oss
@@ -59,7 +69,6 @@ module Selenium
         # Initializes the bridge with the given server URL
         # @param [Hash] opts options for the driver
         # @option opts [String] :url url for the remote server
-        # @option opts [Integer] :port port number for the remote server
         # @option opts [Object] :http_client an HTTP client instance that implements the same protocol as Http::Default
         # @option opts [Capabilities] :desired_capabilities an instance of Remote::Capabilities describing the capabilities you want
         # @api private
@@ -68,11 +77,9 @@ module Selenium
         def initialize(opts = {})
           opts = opts.dup
 
-          WebDriver.logger.deprecate ':port', 'full URL' if opts.key?(:port)
-          port = opts.delete(:port) || 4444
-
           http_client = opts.delete(:http_client) { Http::Default.new }
-          url = opts.delete(:url) { "http://#{Platform.localhost}:#{port}/wd/hub" }
+          url = opts.delete(:url) { "http://#{Platform.localhost}:#{PORT}/wd/hub" }
+          opts.delete(:options)
 
           unless opts.empty?
             raise ArgumentError, "unknown option#{'s' if opts.size != 1}: #{opts.inspect}"
@@ -91,8 +98,8 @@ module Selenium
         # Creates session handling both OSS and W3C dialects.
         #
 
-        def create_session(desired_capabilities)
-          response = execute(:new_session, {}, merged_capabilties(desired_capabilities))
+        def create_session(desired_capabilities, options = nil)
+          response = execute(:new_session, {}, merged_capabilities(desired_capabilities, options))
 
           @session_id = response['sessionId']
           oss_status = response['status']
@@ -108,9 +115,7 @@ module Selenium
             end
           end
 
-          unless @session_id
-            raise Error::WebDriverError, 'no sessionId in returned payload'
-          end
+          raise Error::WebDriverError, 'no sessionId in returned payload' unless @session_id
 
           if oss_status
             WebDriver.logger.info 'Detected OSS dialect.'
@@ -163,21 +168,23 @@ module Selenium
         end
 
         def escaper
-          @escaper ||= defined?(URI::Parser) ? URI::Parser.new : URI
+          @escaper ||= defined?(URI::Parser) ? URI::DEFAULT_PARSER : URI
         end
 
         def commands(command)
           raise NotImplementedError unless command == :new_session
+
           COMMANDS[command]
         end
 
-        def merged_capabilties(oss_capabilities)
-          w3c_capabilties = W3C::Capabilities.from_oss(oss_capabilities)
+        def merged_capabilities(oss_capabilities, options = nil)
+          w3c_capabilities = W3C::Capabilities.from_oss(oss_capabilities)
+          w3c_capabilities.merge!(options.as_json) if options
 
           {
             desiredCapabilities: oss_capabilities,
             capabilities: {
-              firstMatch: [w3c_capabilties]
+              firstMatch: [w3c_capabilities]
             }
           }
         end

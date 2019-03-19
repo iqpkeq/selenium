@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 package com.thoughtworks.selenium.corebased;
 
 import com.thoughtworks.selenium.InternalSelenseTestBase;
@@ -30,7 +29,7 @@ public class TestTypeRichText extends InternalSelenseTestBase {
   }
 
   @Test
-  public void testTypeRichText() throws Exception {
+  public void testTypeRichText() {
     String isIe = selenium.getEval("browserVersion.isIE");
     if (Boolean.valueOf(isIe)) {
       return;

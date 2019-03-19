@@ -1,4 +1,4 @@
-﻿// <copyright file="EventFiringWebDriver.cs" company="WebDriver Committers">
+// <copyright file="EventFiringWebDriver.cs" company="WebDriver Committers">
 // Licensed to the Software Freedom Conservancy (SFC) under one
 // or more contributor license agreements. See the NOTICE file
 // distributed with this work for additional information
@@ -84,12 +84,12 @@ namespace OpenQA.Selenium.Support.Events
         /// <summary>
         /// Fires before the driver changes the value of an element via Clear(), SendKeys() or Toggle().
         /// </summary>
-        public event EventHandler<WebElementEventArgs> ElementValueChanging;
+        public event EventHandler<WebElementValueEventArgs> ElementValueChanging;
 
         /// <summary>
         /// Fires after the driver has changed the value of an element via Clear(), SendKeys() or Toggle().
         /// </summary>
-        public event EventHandler<WebElementEventArgs> ElementValueChanged;
+        public event EventHandler<WebElementValueEventArgs> ElementValueChanged;
 
         /// <summary>
         /// Fires before the driver starts to find an element.
@@ -620,8 +620,8 @@ namespace OpenQA.Selenium.Support.Events
         /// <summary>
         /// Raises the <see cref="ElementValueChanging"/> event.
         /// </summary>
-        /// <param name="e">A <see cref="WebElementEventArgs"/> that contains the event data.</param>
-        protected virtual void OnElementValueChanging(WebElementEventArgs e)
+        /// <param name="e">A <see cref="WebElementValueEventArgs"/> that contains the event data.</param>
+        protected virtual void OnElementValueChanging(WebElementValueEventArgs e)
         {
             if (this.ElementValueChanging != null)
             {
@@ -632,8 +632,8 @@ namespace OpenQA.Selenium.Support.Events
         /// <summary>
         /// Raises the <see cref="ElementValueChanged"/> event.
         /// </summary>
-        /// <param name="e">A <see cref="WebElementEventArgs"/> that contains the event data.</param>
-        protected virtual void OnElementValueChanged(WebElementEventArgs e)
+        /// <param name="e">A <see cref="WebElementValueEventArgs"/> that contains the event data.</param>
+        protected virtual void OnElementValueChanged(WebElementValueEventArgs e)
         {
             if (this.ElementValueChanged != null)
             {
@@ -707,7 +707,7 @@ namespace OpenQA.Selenium.Support.Events
             List<object> unwrappedArgs = new List<object>();
             foreach (object arg in args)
             {
-                EventFiringWebElement eventElementArg = arg as EventFiringWebElement;
+                IWrapsElement eventElementArg = arg as IWrapsElement;
                 if (eventElementArg != null)
                 {
                     unwrappedArgs.Add(eventElementArg.WrappedElement);
@@ -1018,6 +1018,31 @@ namespace OpenQA.Selenium.Support.Events
             }
 
             /// <summary>
+            /// Creates a new browser window and switches the focus for future commands
+            /// of this driver to the new window.
+            /// </summary>
+            /// <param name="typeHint">The type of new browser window to be created.
+            /// The created window is not guaranteed to be of the requested type; if
+            /// the driver does not support the requested type, a new browser window
+            /// will be created of whatever type the driver does support.</param>
+            /// <returns>An <see cref="IWebDriver"/> instance focused on the new browser.</returns>
+            public IWebDriver NewWindow(WindowType typeHint)
+            {
+                IWebDriver driver = null;
+                try
+                {
+                    driver = this.wrappedLocator.NewWindow(typeHint);
+                }
+                catch (Exception ex)
+                {
+                    this.parentDriver.OnException(new WebDriverExceptionEventArgs(this.parentDriver, ex));
+                    throw;
+                }
+
+                return driver;
+            }
+
+            /// <summary>
             /// Change the active frame to the default
             /// </summary>
             /// <returns>Element of the default</returns>
@@ -1138,53 +1163,6 @@ namespace OpenQA.Selenium.Support.Events
             {
                 get { return this.wrappedTimeouts.PageLoad; }
                 set { this.wrappedTimeouts.PageLoad = value; }
-            }
-
-            /// <summary>
-            /// Specifies the amount of time the driver should wait when searching for an
-            /// element if it is not immediately present.
-            /// </summary>
-            /// <param name="timeToWait">A <see cref="TimeSpan"/> structure defining the amount of time to wait.</param>
-            /// <returns>A self reference</returns>
-            /// <remarks>
-            /// When searching for a single element, the driver should poll the page
-            /// until the element has been found, or this timeout expires before throwing
-            /// a <see cref="NoSuchElementException"/>. When searching for multiple elements,
-            /// the driver should poll the page until at least one element has been found
-            /// or this timeout has expired.
-            /// <para>
-            /// Increasing the implicit wait timeout should be used judiciously as it
-            /// will have an adverse effect on test run time, especially when used with
-            /// slower location strategies like XPath.
-            /// </para>
-            /// </remarks>
-            [Obsolete("This method will be removed in a future version. Please set the ImplicitWait property instead.")]
-            public ITimeouts ImplicitlyWait(TimeSpan timeToWait)
-            {
-                return this.wrappedTimeouts.ImplicitlyWait(timeToWait);
-            }
-
-            /// <summary>
-            /// Specifies the amount of time the driver should wait when executing JavaScript asynchronously.
-            /// </summary>
-            /// <param name="timeToWait">A <see cref="TimeSpan"/> structure defining the amount of time to wait.</param>
-            /// <returns>A self reference</returns>
-            [Obsolete("This method will be removed in a future version. Please set the AsynchronousJavaScript property instead.")]
-            public ITimeouts SetScriptTimeout(TimeSpan timeToWait)
-            {
-                return this.wrappedTimeouts.SetScriptTimeout(timeToWait);
-            }
-
-            /// <summary>
-            /// Specifies the amount of time the driver should wait for a page to load when setting the <see cref="IWebDriver.Url"/> property.
-            /// </summary>
-            /// <param name="timeToWait">A <see cref="TimeSpan"/> structure defining the amount of time to wait.</param>
-            /// <returns>A self reference</returns>
-            [Obsolete("This method will be removed in a future version. Please set the PageLoad property instead.")]
-            public ITimeouts SetPageLoadTimeout(TimeSpan timeToWait)
-            {
-                this.wrappedTimeouts.SetPageLoadTimeout(timeToWait);
-                return this;
             }
         }
 
@@ -1384,7 +1362,7 @@ namespace OpenQA.Selenium.Support.Events
             {
                 try
                 {
-                    WebElementEventArgs e = new WebElementEventArgs(this.parentDriver.WrappedDriver, this.underlyingElement);
+                    WebElementValueEventArgs e = new WebElementValueEventArgs(this.parentDriver.WrappedDriver, this.underlyingElement, null);
                     this.parentDriver.OnElementValueChanging(e);
                     this.underlyingElement.Clear();
                     this.parentDriver.OnElementValueChanged(e);
@@ -1404,7 +1382,7 @@ namespace OpenQA.Selenium.Support.Events
             {
                 try
                 {
-                    WebElementEventArgs e = new WebElementEventArgs(this.parentDriver.WrappedDriver, this.underlyingElement);
+                    WebElementValueEventArgs e = new WebElementValueEventArgs(this.parentDriver.WrappedDriver, this.underlyingElement, text);
                     this.parentDriver.OnElementValueChanging(e);
                     this.underlyingElement.SendKeys(text);
                     this.parentDriver.OnElementValueChanged(e);
@@ -1476,6 +1454,28 @@ namespace OpenQA.Selenium.Support.Events
                 }
 
                 return attribute;
+            }
+
+            /// <summary>
+            /// Gets the value of a JavaScript property of this element.
+            /// </summary>
+            /// <param name="propertyName">The name JavaScript the JavaScript property to get the value of.</param>
+            /// <returns>The JavaScript property's current value. Returns a <see langword="null"/> if the
+            /// value is not set or the property does not exist.</returns>
+            public string GetProperty(string propertyName)
+            {
+                string elementProperty = string.Empty;
+                try
+                {
+                    elementProperty = this.underlyingElement.GetProperty(propertyName);
+                }
+                catch (Exception ex)
+                {
+                    this.parentDriver.OnException(new WebDriverExceptionEventArgs(this.parentDriver, ex));
+                    throw;
+                }
+
+                return elementProperty;
             }
 
             /// <summary>

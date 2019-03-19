@@ -17,14 +17,12 @@
 
 package org.openqa.grid.internal;
 
-import com.google.gson.JsonObject;
-
 import org.openqa.grid.common.RegistrationRequest;
 import org.openqa.grid.common.SeleniumProtocol;
 import org.openqa.grid.internal.utils.CapabilityMatcher;
 import org.openqa.grid.internal.utils.HtmlRenderer;
 import org.openqa.grid.internal.utils.configuration.GridNodeConfiguration;
-import org.openqa.selenium.remote.internal.HttpClientFactory;
+import org.openqa.selenium.remote.http.HttpClient;
 
 import java.net.URL;
 import java.util.List;
@@ -65,7 +63,7 @@ public interface RemoteProxy extends Comparable<RemoteProxy> {
    *
    * @return the registry.
    */
-  Registry getRegistry();
+  <T extends GridRegistry> T getRegistry();
 
   /**
    * Returns the capability matcher that will be used to by the remote proxy
@@ -159,19 +157,26 @@ public interface RemoteProxy extends Comparable<RemoteProxy> {
   int getTimeOut();
 
   /**
-   * Retrieves the global factory for creating HTTP clients.
-   *
-   * @return The thread-safe HTTP client factory.
+   * @return an {@link HttpClient} for a particular {@link URL}.
+   * @deprecated use {@link RemoteProxy#getHttpClient(URL, int, int)}
    */
-  HttpClientFactory getHttpClientFactory();
+  HttpClient getHttpClient(URL url);
 
   /**
+   *
+   * @param url URL
+   * @param connectionTimeout int
+   * @param readTimeout int
+   * @return an {@link HttpClient} for a particular {@link URL}.
+   */
+  HttpClient getHttpClient(URL url, int connectionTimeout, int readTimeout);
+
+    /**
    * Renders the status of the node as JSON.  Useful for APIs.
    *
    * @return the node status.
-   *
    */
-  JsonObject getStatus() ;
+  Map<String, Object> getProxyStatus();
 
   /**
    * Checks if the node has the capability requested.

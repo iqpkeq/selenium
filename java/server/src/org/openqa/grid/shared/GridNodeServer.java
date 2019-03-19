@@ -17,16 +17,12 @@
 
 package org.openqa.grid.shared;
 
-import org.openqa.grid.internal.utils.configuration.StandaloneConfiguration;
-
 import java.util.Map;
 
 import javax.servlet.Servlet;
 
-public interface GridNodeServer {
-  void boot() throws Exception;
-  void stop();
+public interface GridNodeServer extends Stoppable {
+  boolean boot();
   int getRealPort();
   void setExtraServlets(Map<String, Class<? extends Servlet>> extraServlets);
-  void setConfiguration(StandaloneConfiguration configuration);
 }

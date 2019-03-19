@@ -17,13 +17,13 @@
 
 package org.openqa.selenium.interactions;
 
-import com.google.common.base.Preconditions;
-
 import org.openqa.selenium.WebElement;
+import org.openqa.selenium.WrapsElement;
 
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -37,7 +37,7 @@ public class PointerInput implements InputSource, Encodable {
   private final String name;
 
   public PointerInput(Kind kind, String name) {
-    this.kind = Preconditions.checkNotNull(kind, "Must set kind of pointer device");
+    this.kind = Objects.requireNonNull(kind, "Must set kind of pointer device");
     this.name = Optional.ofNullable(name).orElse(UUID.randomUUID().toString());
   }
 
@@ -50,7 +50,7 @@ public class PointerInput implements InputSource, Encodable {
   public Map<String, Object> encode() {
     Map<String, Object> toReturn = new HashMap<>();
 
-    toReturn.put("type", "pointer");
+    toReturn.put("type", getInputType().getType());
     toReturn.put("id", name);
 
     Map<String, Object> parameters = new HashMap<>();
@@ -80,10 +80,12 @@ public class PointerInput implements InputSource, Encodable {
     public PointerPress(InputSource source, Direction direction, int button) {
       super(source);
 
-      Preconditions.checkState(
-          button >= 0,
-          "Button must be greater than or equal to 0: %d", button);
-      this.direction = Preconditions.checkNotNull(direction);
+      if (button < 0) {
+        throw new IllegalStateException(
+            String.format("Button must be greater than or equal to 0: %d", button));
+      }
+
+      this.direction = Objects.requireNonNull(direction);
       this.button = button;
     }
 
@@ -128,12 +130,12 @@ public class PointerInput implements InputSource, Encodable {
         int y) {
       super(source);
 
-      Preconditions.checkState(
-          !duration.isNegative(),
-          "Duration value must be 0 or greater: %s",
-          duration);
+      if (duration.isNegative()) {
+        throw new IllegalStateException(
+            String.format("Duration value must be 0 or greater: %s", duration));
+      }
 
-      this.origin = Preconditions.checkNotNull(origin, "Origin of move must be set");
+      this.origin = Objects.requireNonNull(origin, "Origin of move must be set");
       this.x = x;
       this.y = y;
       this.duration = duration;
@@ -197,7 +199,11 @@ public class PointerInput implements InputSource, Encodable {
     private final Object originObject;
 
     public Object asArg() {
-      return originObject;
+      Object arg = originObject;
+      while (arg instanceof WrapsElement) {
+        arg = ((WrapsElement) arg).getWrappedElement();
+      }
+      return arg;
     }
 
     private Origin(Object originObject) {
@@ -213,7 +219,7 @@ public class PointerInput implements InputSource, Encodable {
     }
 
     public static Origin fromElement(WebElement element) {
-      return new Origin(Preconditions.checkNotNull(element));
+      return new Origin(Objects.requireNonNull(element));
     }
   }
 

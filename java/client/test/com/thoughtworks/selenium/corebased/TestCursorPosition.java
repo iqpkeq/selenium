@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 package com.thoughtworks.selenium.corebased;
 
 import com.thoughtworks.selenium.InternalSelenseTestBase;
@@ -25,7 +24,7 @@ import org.junit.Test;
 
 public class TestCursorPosition extends InternalSelenseTestBase {
   @Test
-  public void testCursorPosition() throws Exception {
+  public void testCursorPosition() {
     selenium.open("../tests/html/test_type_page1.html");
     try {
       assertEquals(selenium.getCursorPosition("username"), "8");

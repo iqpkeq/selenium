@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -73,7 +73,7 @@ module Selenium
         return download_file_name if File.exist? download_file_name
 
         begin
-          open(download_file_name, 'wb') do |destination|
+          File.open(download_file_name, 'wb') do |destination|
             net_http.start('selenium-release.storage.googleapis.com') do |http|
               resp = http.request_get("/#{required_version[/(\d+\.\d+)\./, 1]}/#{download_file_name}") do |response|
                 total = response.content_length
@@ -84,7 +84,7 @@ module Selenium
                   progress += segment.length
                   segment_count += 1
 
-                  if segment_count % 15 == 0
+                  if (segment_count % 15).zero?
                     percent = (progress.to_f / total.to_f) * 100
                     print "#{CL_RESET}Downloading #{download_file_name}: #{percent.to_i}% (#{progress} / #{total})"
                     segment_count = 0
@@ -94,9 +94,7 @@ module Selenium
                 end
               end
 
-              unless resp.is_a? Net::HTTPSuccess
-                raise Error, "#{resp.code} for #{download_file_name}"
-              end
+              raise Error, "#{resp.code} for #{download_file_name}" unless resp.is_a? Net::HTTPSuccess
             end
           end
         rescue
@@ -114,9 +112,11 @@ module Selenium
       def latest
         require 'rexml/document'
         net_http.start('selenium-release.storage.googleapis.com') do |http|
-          REXML::Document.new(http.get('/').body).root.get_elements('//Contents/Key').map do |e|
+          versions = REXML::Document.new(http.get('/').body).root.get_elements('//Contents/Key').map do |e|
             e.text[/selenium-server-standalone-(\d+\.\d+\.\d+)\.jar/, 1]
-          end.compact.max
+          end
+
+          versions.compact.map { |version| Gem::Version.new(version) }.max.version
         end
       end
 
@@ -199,7 +199,7 @@ module Selenium
       stop_process if @process
       poll_for_shutdown
 
-      @log_file.close if @log_file
+      @log_file&.close
     end
 
     def webdriver_url
@@ -231,7 +231,7 @@ module Selenium
     end
 
     def process
-      @process ||= (
+      @process ||= begin
         # extract any additional_args that start with -D as options
         properties = @additional_args.dup - @additional_args.delete_if { |arg| arg[/^-D/] }
         server_command = ['java'] + properties + ['-jar', @jar, '-port', @port.to_s] + @additional_args
@@ -250,16 +250,18 @@ module Selenium
         cp.detach = @background
 
         cp
-      )
+      end
     end
 
     def poll_for_service
       return if socket.connected?
+
       raise Error, "remote server not launched in #{@timeout} seconds"
     end
 
     def poll_for_shutdown
       return if socket.closed?
+
       raise Error, "remote server not stopped in #{@timeout} seconds"
     end
 

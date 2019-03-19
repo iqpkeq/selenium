@@ -20,7 +20,6 @@ package com.thoughtworks.selenium.webdriven;
 import static org.openqa.selenium.remote.CapabilityType.SUPPORTS_JAVASCRIPT;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Maps;
 
 import com.thoughtworks.selenium.CommandProcessor;
 import com.thoughtworks.selenium.SeleniumException;
@@ -29,8 +28,9 @@ import com.thoughtworks.selenium.webdriven.commands.*;
 import org.openqa.selenium.HasCapabilities;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.internal.WrapsDriver;
+import org.openqa.selenium.WrapsDriver;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -40,7 +40,7 @@ import java.util.function.Supplier;
  */
 public class WebDriverCommandProcessor implements CommandProcessor, WrapsDriver {
 
-  private final Map<String, SeleneseCommand<?>> seleneseMethods = Maps.newHashMap();
+  private final Map<String, SeleneseCommand<?>> seleneseMethods = new HashMap<>();
   private final String baseUrl;
   private final Timer timer;
   private final CompoundMutator scriptMutator;
@@ -64,14 +64,17 @@ public class WebDriverCommandProcessor implements CommandProcessor, WrapsDriver 
     this.scriptMutator = new CompoundMutator(baseUrl);
   }
 
+  @Override
   public WebDriver getWrappedDriver() {
     return driver;
   }
 
+  @Override
   public String getRemoteControlServerLocation() {
     throw new UnsupportedOperationException();
   }
 
+  @Override
   public String doCommand(String commandName, String[] args) {
     Object val = execute(commandName, args);
     if (val == null) {
@@ -81,18 +84,22 @@ public class WebDriverCommandProcessor implements CommandProcessor, WrapsDriver 
     return val.toString();
   }
 
+  @Override
   public void setExtensionJs(String s) {
     throw new UnsupportedOperationException();
   }
 
+  @Override
   public void start() {
     start((Object) null);
   }
 
+  @Override
   public void start(String s) {
     throw new UnsupportedOperationException("Unsure how to process: " + s);
   }
 
+  @Override
   public void start(Object o) {
     if (driver != null) {
       if (maker != null) {
@@ -109,6 +116,7 @@ public class WebDriverCommandProcessor implements CommandProcessor, WrapsDriver 
     setUpMethodMap();
   }
 
+  @Override
   public void stop() {
     timer.stop();
     if (driver != null) {
@@ -117,26 +125,32 @@ public class WebDriverCommandProcessor implements CommandProcessor, WrapsDriver 
     driver = null;
   }
 
+  @Override
   public String getString(String commandName, String[] args) {
     return (String) execute(commandName, args);
   }
 
+  @Override
   public String[] getStringArray(String commandName, String[] args) {
     return (String[]) execute(commandName, args);
   }
 
+  @Override
   public Number getNumber(String commandName, String[] args) {
     return (Number) execute(commandName, args);
   }
 
+  @Override
   public Number[] getNumberArray(String s, String[] strings) {
     throw new UnsupportedOperationException();
   }
 
+  @Override
   public boolean getBoolean(String commandName, String[] args) {
     return (Boolean) execute(commandName, args);
   }
 
+  @Override
   public boolean[] getBooleanArray(String s, String[] strings) {
     throw new UnsupportedOperationException();
   }

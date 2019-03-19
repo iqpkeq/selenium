@@ -1,4 +1,4 @@
-# py_test targets implicitly get the following extra targets added:
+# py_test targets emplicitly get the following extra targets added:
 # for each browser in browsers:
 #   :name_B to gather the sources of the tests for browser B
 #   :name_B:run to run the tests for browser B
@@ -12,8 +12,8 @@ py_test(
   name = "firefox_test",
   deps = [ ":test_ff" ],
   resources = [
-    { "//javascript/firefox-driver:webdriver_prefs" : "selenium/webdriver/firefox/webdriver_prefs.json" },
-    { "//javascript/firefox-driver:webdriver" : "selenium/webdriver/firefox/" }
+    { "//third_party/js/selenium:webdriver_prefs" : "selenium/webdriver/firefox/webdriver_prefs.json" },
+    { "//third_party/js/selenium:webdriver" : "selenium/webdriver/firefox/" }
   ],
   browsers = [ "ff" ])
 
@@ -21,11 +21,6 @@ py_test(
   name = "marionette_test",
   deps = [ ":test_marionette" ],
   browsers = [ "marionette" ])
-
-py_test(
-  name = "phantomjs_test",
-  deps = [ ":test_phantomjs" ],
-  browsers = [ "phantomjs" ])
 
 py_test(
   name = "blackberry_test",
@@ -66,7 +61,6 @@ py_test(
     "ie",
     "edge",
     "blackberry",
-    "phantomjs",
     "remote_firefox",
     "safari",
   ])
@@ -85,7 +79,7 @@ py_prep(
     "//cpp:noblur",
     "//cpp:noblur64",
     "//javascript/atoms/fragments:is-displayed",
-    "//javascript/firefox-driver:webdriver",
-    "//javascript/firefox-driver:webdriver_prefs",
-    "//javascript/webdriver/atoms:getAttribute"
+    "//third_party/js/selenium:webdriver",
+    "//third_party/js/selenium:webdriver_prefs",
+    "//javascript/webdriver/atoms:get-attribute"
   ])

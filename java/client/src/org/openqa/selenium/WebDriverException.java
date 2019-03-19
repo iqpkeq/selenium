@@ -17,8 +17,6 @@
 
 package org.openqa.selenium;
 
-import org.openqa.selenium.internal.BuildInfo;
-
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.InetAddress;
@@ -32,7 +30,7 @@ public class WebDriverException extends RuntimeException {
 
   public static final String SESSION_ID = "Session ID";
   public static final String DRIVER_INFO = "Driver info";
-  protected static final String BASE_SUPPORT_URL = "http://seleniumhq.org/exceptions/";
+  protected static final String BASE_SUPPORT_URL = "https://www.seleniumhq.org/exceptions/";
 
   private final static String HOST_NAME;
   private final static String HOST_ADDRESS;
@@ -57,6 +55,8 @@ public class WebDriverException extends RuntimeException {
 
         if (!process.waitFor(2, TimeUnit.SECONDS)) {
           process.destroyForcibly();
+          // According to the docs for `destroyForcibly` this is a good idea.
+          process.waitFor(2, TimeUnit.SECONDS);
         }
         if (process.exitValue() == 0) {
           try (InputStreamReader isr = new InputStreamReader(process.getInputStream());
@@ -88,10 +88,8 @@ public class WebDriverException extends RuntimeException {
       try {
         NetworkInterface en0 = NetworkInterface.getByName("en0");
         Enumeration<InetAddress> addresses = en0.getInetAddresses();
-        while (addresses.hasMoreElements()) {
-          InetAddress inetAddress = addresses.nextElement();
-          address = inetAddress.getHostAddress();
-          break;
+        if (addresses.hasMoreElements()) {
+          address = addresses.nextElement().getHostAddress();
         }
       } catch (Exception e) {
         // Fall through and go the slow way.

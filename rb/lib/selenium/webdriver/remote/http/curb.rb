@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -79,7 +79,7 @@ module Selenium
           end
 
           def client
-            @client ||= (
+            @client ||= begin
               c = Curl::Easy.new
 
               c.max_redirects   = MAX_REDIRECTS
@@ -88,7 +88,7 @@ module Selenium
               c.verbose         = WebDriver.logger.info?
 
               c
-            )
+            end
           end
         end # Curb
       end # Http

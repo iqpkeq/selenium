@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -24,6 +24,8 @@ module Selenium
         attr_reader :args, :prefs, :options, :emulation, :extensions, :encoded_extensions
         attr_accessor :binary
 
+        KEY = 'goog:chromeOptions'
+
         #
         # Create a new Options instance.
         #
@@ -41,7 +43,7 @@ module Selenium
         #
 
         def initialize(**opts)
-          @args = opts.delete(:args) || []
+          @args = Set.new(opts.delete(:args) || [])
           @binary = opts.delete(:binary) || Chrome.path
           @prefs = opts.delete(:prefs) || {}
           @extensions = opts.delete(:extensions) || []
@@ -63,6 +65,7 @@ module Selenium
         def add_extension(path)
           raise Error::WebDriverError, "could not find extension at #{path.inspect}" unless File.file?(path)
           raise Error::WebDriverError, "file was not an extension #{path.inspect}" unless File.extname(path) == '.crx'
+
           @extensions << path
         end
 
@@ -81,7 +84,7 @@ module Selenium
         end
 
         #
-        # Add a command-line argument to use when starting Chrome
+        # Add a command-line argument to use when starting Chrome.
         #
         # @example Start Chrome maximized
         #   options = Selenium::WebDriver::Chrome::Options.new
@@ -125,15 +128,27 @@ module Selenium
         end
 
         #
+        # Run Chrome in headless mode.
+        #
+        # @example Enable headless mode
+        #   options = Selenium::WebDriver::Chrome::Options.new
+        #   options.headless!
+        #
+
+        def headless!
+          add_argument '--headless'
+        end
+
+        #
         # Add an emulation device name
         #
         # @example Start Chrome in mobile emulation mode by device name
         #   options = Selenium::WebDriver::Chrome::Options.new
-        #   options.add_emulated_device(device_name: 'Google Nexus 6')
+        #   options.add_emulation(device_name: 'iPhone 6')
         #
         # @example Start Chrome in mobile emulation mode by device metrics
         #   options = Selenium::WebDriver::Chrome::Options.new
-        #   options.add_emulated_device(device_metrics: {width: 400, height: 800, pixelRatio: 1, touch: true})
+        #   options.add_emulation(device_metrics: {width: 400, height: 800, pixelRatio: 1, touch: true})
         #
         # @param [String] device_name Name of the device or a hash containing width, height, pixelRatio, touch
         # @param [Hash] device_metrics Hash containing width, height, pixelRatio, touch
@@ -158,13 +173,14 @@ module Selenium
 
           opts = @options
           opts[:binary] = @binary if @binary
-          opts[:args] = @args if @args.any?
+          opts[:args] = @args.to_a if @args.any?
           opts[:extensions] = extensions if extensions.any?
           opts[:mobileEmulation] = @emulation unless @emulation.empty?
           opts[:prefs] = @prefs unless @prefs.empty?
-          opts
+
+          {KEY => opts}
         end
-      end # Profile
+      end # Options
     end # Chrome
   end # WebDriver
 end # Selenium

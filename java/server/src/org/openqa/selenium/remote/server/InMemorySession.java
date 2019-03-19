@@ -17,56 +17,71 @@
 
 package org.openqa.selenium.remote.server;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.openqa.selenium.remote.Dialect.OSS;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterables;
-import com.google.common.io.CharStreams;
+import com.google.common.base.StandardSystemProperty;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import org.openqa.selenium.Capabilities;
-import org.openqa.selenium.ImmutableCapabilities;
-import org.openqa.selenium.SessionNotCreatedException;
+import org.openqa.selenium.HasCapabilities;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.grid.session.ActiveSession;
+import org.openqa.selenium.grid.session.SessionFactory;
+import org.openqa.selenium.io.TemporaryFilesystem;
 import org.openqa.selenium.remote.Dialect;
-import org.openqa.selenium.remote.JsonToBeanConverter;
 import org.openqa.selenium.remote.SessionId;
 import org.openqa.selenium.remote.http.HttpRequest;
 import org.openqa.selenium.remote.http.HttpResponse;
 
-import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.logging.Logger;
-import java.util.stream.Collectors;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
-
-/**
- * Wraps an existing {@link org.openqa.selenium.WebDriver} instance and provides it with the OSS
- * wire protocol remote end points.
- */
 class InMemorySession implements ActiveSession {
 
-  private final SessionId id;
-  private final Session session;
-  private JsonHttpCommandHandler commandHandler;
-  private Dialect downstreamDialect;
+  private static final Logger LOG = Logger.getLogger(InMemorySession.class.getName());
 
-  public InMemorySession(
-      SessionId id,
-      Session session,
-      JsonHttpCommandHandler commandHandler,
-      Dialect downstreamDialect) {
-    this.id = id;
-    this.session = session;
-    this.commandHandler = commandHandler;
-    this.downstreamDialect = downstreamDialect;
+  private final WebDriver driver;
+  private final Map<String, Object> capabilities;
+  private final SessionId id;
+  private final Dialect downstream;
+  private final TemporaryFilesystem filesystem;
+  private final JsonHttpCommandHandler handler;
+
+  private InMemorySession(WebDriver driver, Capabilities capabilities, Dialect downstream) {
+    this.driver = Preconditions.checkNotNull(driver);
+
+    Capabilities caps;
+    if (driver instanceof HasCapabilities) {
+      caps = ((HasCapabilities) driver).getCapabilities();
+    } else {
+      caps = capabilities;
+    }
+
+    this.capabilities = caps.asMap().entrySet().stream()
+        .filter(e -> e.getValue() != null)
+        .collect(ImmutableMap.toImmutableMap(Map.Entry::getKey, Map.Entry::getValue));
+
+    this.id = new SessionId(UUID.randomUUID().toString());
+    this.downstream = Preconditions.checkNotNull(downstream);
+
+    File tempRoot = new File(StandardSystemProperty.JAVA_IO_TMPDIR.value(), id.toString());
+    Preconditions.checkState(tempRoot.mkdirs());
+    this.filesystem = TemporaryFilesystem.getTmpFsBasedOn(tempRoot);
+
+    this.handler = new JsonHttpCommandHandler(
+        new PretendDriverSessions(),
+        LOG);
+  }
+
+  @Override
+  public void execute(HttpRequest req, HttpResponse resp) throws IOException {
+    handler.handleRequest(req, resp);
   }
 
   @Override
@@ -76,65 +91,143 @@ class InMemorySession implements ActiveSession {
 
   @Override
   public Dialect getUpstreamDialect() {
-    return OSS;
+    return Dialect.OSS;
   }
 
   @Override
   public Dialect getDownstreamDialect() {
-    return downstreamDialect;
+    return downstream;
   }
 
   @Override
   public Map<String, Object> getCapabilities() {
-    return session.getCapabilities().asMap().entrySet().stream()
-        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    return capabilities;
+  }
+
+  @Override
+  public TemporaryFilesystem getFileSystem() {
+    return filesystem;
+  }
+
+  @Override
+  public WebDriver getWrappedDriver() {
+    return driver;
   }
 
   @Override
   public void stop() {
-    session.close();
-  }
-
-  @Override
-  public void execute(HttpRequest req, HttpResponse resp) throws IOException {
-    commandHandler.handleRequest(req, resp);
+    driver.quit();
   }
 
   public static class Factory implements SessionFactory {
 
-    private final DriverSessions legacySessions;
-    private final JsonHttpCommandHandler jsonHttpCommandHandler;
+    private final DriverProvider provider;
 
-    public Factory(DriverSessions legacySessions) {
-      this.legacySessions = Preconditions.checkNotNull(legacySessions);
-      jsonHttpCommandHandler = new JsonHttpCommandHandler(
-          legacySessions,
-          Logger.getLogger(InMemorySession.class.getName()));
+    public Factory(DriverProvider provider) {
+      this.provider = provider;
+    }
+
+
+    @Override
+    public boolean isSupporting(Capabilities capabilities) {
+      return provider.canCreateDriverInstanceFor(capabilities);
     }
 
     @Override
-    public ActiveSession apply(Path path, Set<Dialect> downstreamDialects) {
-      try (BufferedReader reader = Files.newBufferedReader(path, UTF_8)) {
-        Map<?, ?> blob = new JsonToBeanConverter().convert(Map.class, CharStreams.toString(reader));
-
-        Map<String, ?> rawCaps = (Map<String, ?>) blob.get("desiredCapabilities");
-        if (rawCaps == null) {
-          rawCaps = new HashMap<>();
+    public Optional<ActiveSession> apply(Set<Dialect> downstreamDialects, Capabilities caps) {
+      // Assume the blob fits in the available memory.
+      try {
+        if (!provider.canCreateDriverInstanceFor(caps)) {
+          return Optional.empty();
         }
-        Capabilities caps = new ImmutableCapabilities(rawCaps);
 
-        SessionId sessionId = legacySessions.newSession(caps);
-        Session session = legacySessions.get(sessionId);
+        WebDriver driver = provider.newInstance(caps);
 
-        // Force OSS dialect if downstream speaks it
-        Dialect downstream = downstreamDialects.contains(OSS) ?
-                             OSS :
-                             Iterables.getFirst(downstreamDialects, null);
-
-        return new InMemorySession(sessionId, session, jsonHttpCommandHandler, downstream);
-      } catch (Exception e) {
-        throw new SessionNotCreatedException("Unable to create session", e);
+        // Prefer the OSS dialect.
+        Dialect downstream = downstreamDialects.contains(Dialect.OSS) || downstreamDialects.isEmpty() ?
+                             Dialect.OSS :
+                             downstreamDialects.iterator().next();
+        return Optional.of(new InMemorySession(driver, caps, downstream));
+      } catch (IllegalStateException e) {
+        return Optional.empty();
       }
+    }
+
+    @Override
+    public String toString() {
+      return getClass() + " (provider: " + provider + ")";
+    }
+
+  }
+
+  private class PretendDriverSessions implements DriverSessions {
+
+    private final Session session;
+
+    private PretendDriverSessions() {
+      this.session = new ActualSession();
+    }
+
+    @Override
+    public Session get(SessionId sessionId) {
+      return getId().equals(sessionId) ? session : null;
+    }
+
+    @Override
+    public Set<SessionId> getSessions() {
+      return ImmutableSet.of(getId());
+    }
+  }
+
+  private class ActualSession implements Session {
+
+    private final KnownElements knownElements;
+    private volatile String screenshot;
+
+    private ActualSession() {
+      knownElements = new KnownElements();
+    }
+
+    @Override
+    public void close() {
+      driver.quit();
+    }
+
+    @Override
+    public WebDriver getDriver() {
+      return driver;
+    }
+
+    @Override
+    public KnownElements getKnownElements() {
+      return knownElements;
+    }
+
+    @Override
+    public Map<String, Object> getCapabilities() {
+      return capabilities;
+    }
+
+    @Override
+    public void attachScreenshot(String base64EncodedImage) {
+      screenshot = base64EncodedImage;
+    }
+
+    @Override
+    public String getAndClearScreenshot() {
+      String toReturn = screenshot;
+      screenshot = null;
+      return toReturn;
+    }
+
+    @Override
+    public SessionId getSessionId() {
+      return getId();
+    }
+
+    @Override
+    public TemporaryFilesystem getTemporaryFileSystem() {
+      return getFileSystem();
     }
   }
 }

@@ -29,9 +29,9 @@ GetActiveElementCommandHandler::~GetActiveElementCommandHandler(void) {
 }
 
 void GetActiveElementCommandHandler::ExecuteInternal(
-    const IECommandExecutor& executor,
-    const ParametersMap& command_parameters,
-    Response* response) {
+  const IECommandExecutor& executor,
+  const ParametersMap& command_parameters,
+  Response* response) {
   BrowserHandle browser_wrapper;
   int status_code = executor.GetCurrentBrowser(&browser_wrapper);
   if (status_code != WD_SUCCESS) {
@@ -46,24 +46,35 @@ void GetActiveElementCommandHandler::ExecuteInternal(
     return;
   }
 
-  CComPtr<IHTMLElement> element;
-  doc->get_activeElement(&element);
+  CComPtr<IHTMLElement> element(NULL);
+  HRESULT hr = doc->get_activeElement(&element);
 
-  // For some contentEditable frames, the <body> element will be the
-  // active element. However, to properly have focus, we must explicitly
-  // set focus to the element.
-  CComPtr<IHTMLBodyElement> body_element;
-  HRESULT body_hr = element->QueryInterface<IHTMLBodyElement>(&body_element);
-  if (body_element) {
-    CComPtr<IHTMLElement2> body_element2;
-    body_element->QueryInterface<IHTMLElement2>(&body_element2);
-    body_element2->focus();
+  if (FAILED(hr)) {
+    // For some contentEditable frames, the <body> element will be the
+    // active element. However, to properly have focus, we must explicitly
+    // set focus to the element.
+    CComPtr<IHTMLBodyElement> body_element;
+    HRESULT body_hr = element->QueryInterface<IHTMLBodyElement>(&body_element);
+    if (body_element) {
+      CComPtr<IHTMLElement2> body_element2;
+      body_element->QueryInterface<IHTMLElement2>(&body_element2);
+      body_element2->focus();
+    }
   }
 
-  // If we don't have an element at this point, just return the
-  // body element so that we don't return a NULL pointer.
+  // If we don't have an element at this point, but the document
+  // has a body element, we should return a null result, as that's
+  // what document.activeElement() returns. However, if there is no
+  // body element, throw no such element.
   if (!element) {
-    doc->get_body(&element);
+    CComPtr<IHTMLElement> body;
+    hr = doc->get_body(&body);
+    if (body) {
+      response->SetSuccessResponse(Json::Value::null);
+    } else {
+      response->SetErrorResponse(ERROR_NO_SUCH_ELEMENT, "No active element found, and no body element present.");
+    }
+    return;
   }
 
   if (element) {

@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 package com.thoughtworks.selenium.corebased;
 
 import static org.junit.Assume.assumeFalse;
@@ -23,9 +22,9 @@ import static org.junit.Assume.assumeFalse;
 import com.thoughtworks.selenium.InternalSelenseTestBase;
 
 import org.junit.Test;
+import org.openqa.selenium.WrapsDriver;
 import org.openqa.selenium.environment.GlobalTestEnvironment;
 import org.openqa.selenium.environment.webserver.AppServer;
-import org.openqa.selenium.internal.WrapsDriver;
 import org.openqa.selenium.testing.TestUtilities;
 
 import java.net.MalformedURLException;

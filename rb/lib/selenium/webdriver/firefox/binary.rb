@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -22,7 +22,7 @@ module Selenium
     module Firefox
       # @api private
       class Binary
-        NO_FOCUS_LIBRARY_NAME = 'x_ignore_nofocus.so'.freeze
+        NO_FOCUS_LIBRARY_NAME = 'x_ignore_nofocus.so'
         NO_FOCUS_LIBRARIES = [
           ["#{WebDriver.root}/selenium/webdriver/firefox/native/linux/amd64/#{NO_FOCUS_LIBRARY_NAME}",
            "amd64/#{NO_FOCUS_LIBRARY_NAME}"],
@@ -37,7 +37,7 @@ module Selenium
           if Platform.cygwin?
             profile_path = Platform.cygwin_path(profile_path, windows: true)
           elsif Platform.windows?
-            profile_path = profile_path.tr('/', '\\')
+            profile_path = Platform.windows_path(profile_path)
           end
 
           ENV['XRE_CONSOLE_LOG'] = profile.log_file if profile.log_file
@@ -46,15 +46,14 @@ module Selenium
           ENV['MOZ_CRASHREPORTER_DISABLE'] = '1' # disable breakpad
           ENV['NO_EM_RESTART'] = '1' # prevent the binary from detaching from the console
 
-          if Platform.linux? && (profile.native_events? || profile.load_no_focus_lib?)
-            modify_link_library_path profile_path
-          end
+          modify_link_library_path profile_path if Platform.linux? && (profile.native_events? || profile.load_no_focus_lib?)
 
           execute(*args)
         end
 
         def quit
           return unless @process
+
           @process.poll_for_exit QUIT_TIMEOUT
         rescue ChildProcess::TimeoutError
           # ok, force quit
@@ -79,7 +78,7 @@ module Selenium
           @process = ChildProcess.build(*args)
           WebDriver.logger.debug("Executing Process #{args}")
 
-          @process.io.stdout = @process.io.stderr = WebDriver.logger.io
+          @process.io.stdout = @process.io.stderr = WebDriver.logger.io if WebDriver.logger.debug?
           @process.start
         end
 
@@ -128,7 +127,7 @@ module Selenium
                         raise Error::WebDriverError, "unknown platform: #{Platform.os}"
                       end
 
-            @path = Platform.cygwin_path(@path) if Platform.cygwin?
+            @path = Platform.cygwin_path(@path, windows: true) if Platform.cygwin?
 
             unless File.file?(@path.to_s)
               error = "Could not find Firefox binary (os=#{Platform.os}). "

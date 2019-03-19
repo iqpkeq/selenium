@@ -17,29 +17,35 @@
 
 package org.openqa.selenium.firefox;
 
-import static org.openqa.selenium.firefox.FirefoxDriver.SystemProperty.BROWSER_LOGFILE;
-import static org.openqa.selenium.firefox.FirefoxDriver.SystemProperty.DRIVER_USE_MARIONETTE;
-import static org.openqa.selenium.firefox.FirefoxOptions.FIREFOX_OPTIONS;
+import static java.util.Collections.singletonMap;
 import static org.openqa.selenium.remote.CapabilityType.PROXY;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import org.openqa.selenium.Capabilities;
+import org.openqa.selenium.ImmutableCapabilities;
+import org.openqa.selenium.MutableCapabilities;
 import org.openqa.selenium.Proxy;
 import org.openqa.selenium.WebDriverException;
+import org.openqa.selenium.html5.LocalStorage;
+import org.openqa.selenium.html5.SessionStorage;
+import org.openqa.selenium.html5.WebStorage;
 import org.openqa.selenium.remote.CommandExecutor;
-import org.openqa.selenium.remote.DesiredCapabilities;
+import org.openqa.selenium.remote.CommandInfo;
 import org.openqa.selenium.remote.FileDetector;
 import org.openqa.selenium.remote.RemoteWebDriver;
+import org.openqa.selenium.remote.html5.RemoteWebStorage;
+import org.openqa.selenium.remote.http.HttpMethod;
 import org.openqa.selenium.remote.service.DriverCommandExecutor;
 import org.openqa.selenium.remote.service.DriverService;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.Map;
+import java.nio.file.Path;
+import java.util.Objects;
+import java.util.ServiceLoader;
 import java.util.Set;
-import java.util.logging.Logger;
+import java.util.stream.StreamSupport;
 
 /**
  * An implementation of the {#link WebDriver} interface that drives Firefox.
@@ -53,7 +59,7 @@ import java.util.logging.Logger;
  *WebDriver driver = new FirefoxDriver(options);
  * </pre>
  */
-public class FirefoxDriver extends RemoteWebDriver {
+public class FirefoxDriver extends RemoteWebDriver implements WebStorage, HasExtensions {
 
   public static final class SystemProperty {
 
@@ -92,162 +98,82 @@ public class FirefoxDriver extends RemoteWebDriver {
     public static final String DRIVER_USE_MARIONETTE = "webdriver.firefox.marionette";
   }
 
-  private static final Logger LOG = Logger.getLogger(FirefoxDriver.class.getName());
-
   public static final String BINARY = "firefox_binary";
   public static final String PROFILE = "firefox_profile";
   public static final String MARIONETTE = "marionette";
 
+  private static class ExtraCommands {
+    static String INSTALL_EXTENSION = "installExtension";
+    static String UNINSTALL_EXTENSION = "uninstallExtension";
+  }
+
+  private static final ImmutableMap<String, CommandInfo> EXTRA_COMMANDS = ImmutableMap.of(
+      ExtraCommands.INSTALL_EXTENSION,
+      new CommandInfo("/session/:sessionId/moz/addon/install", HttpMethod.POST),
+      ExtraCommands.UNINSTALL_EXTENSION,
+      new CommandInfo("/session/:sessionId/moz/addon/uninstall", HttpMethod.POST)
+  );
+
+  private static class FirefoxDriverCommandExecutor extends DriverCommandExecutor {
+    public FirefoxDriverCommandExecutor(DriverService service) {
+      super(service, EXTRA_COMMANDS);
+    }
+  }
+
   protected FirefoxBinary binary;
+  private RemoteWebStorage webStorage;
 
   public FirefoxDriver() {
     this(new FirefoxOptions());
   }
 
-  public FirefoxDriver(FirefoxOptions options) {
-    this(toExecutor(options), options.toCapabilities(), options.toCapabilities());
-  }
-
   /**
-   * @deprecated Prefer {@link FirefoxOptions#setBinary(FirefoxBinary)}.
+   * @deprecated Use {@link #FirefoxDriver(FirefoxOptions)}.
    */
   @Deprecated
-  public FirefoxDriver(FirefoxBinary binary) {
-    this(new FirefoxOptions().setBinary(binary));
-    warnAboutDeprecatedConstructor("FirefoxBinary", "setBinary(binary)");
-  }
-
-  public FirefoxDriver(FirefoxProfile profile) {
-    this(new FirefoxOptions().setProfile(profile));
-  }
-
-  /**
-   * @deprecated Prefer {@link FirefoxOptions#setBinary(FirefoxBinary)}, and
-   *   {@link FirefoxOptions#setProfile(FirefoxProfile)}.
-   */
-  @Deprecated
-  public FirefoxDriver(FirefoxBinary binary, FirefoxProfile profile) {
-    this(new FirefoxOptions().setBinary(binary).setProfile(profile));
-    warnAboutDeprecatedConstructor(
-        "FirefoxBinary and FirefoxProfile",
-        "setBinary(binary).setProfile(profile)");
-  }
-
   public FirefoxDriver(Capabilities desiredCapabilities) {
-    this(getFirefoxOptions(desiredCapabilities).addCapabilities(desiredCapabilities));
+    this(new FirefoxOptions(Objects.requireNonNull(desiredCapabilities, "No capabilities seen")));
   }
 
   /**
-   * @deprecated Prefer {@link FirefoxDriver#FirefoxDriver(FirefoxOptions)}
+   * @deprecated Use {@link #FirefoxDriver(FirefoxDriverService, FirefoxOptions)}.
    */
   @Deprecated
-  public FirefoxDriver(Capabilities desiredCapabilities, Capabilities requiredCapabilities) {
-    this(getFirefoxOptions(desiredCapabilities)
-             .addCapabilities(desiredCapabilities)
-             .addCapabilities(requiredCapabilities));
-    warnAboutDeprecatedConstructor(
-        "Capabilities",
-        "addCapabilities(capabilities)");
+  public FirefoxDriver(FirefoxDriverService service, Capabilities desiredCapabilities) {
+    this(
+        Objects.requireNonNull(service, "No driver service provided"),
+        new FirefoxOptions(desiredCapabilities));
   }
 
-  /**
-   * @deprecated Prefer {@link FirefoxOptions#setBinary(FirefoxBinary)},
-   *   {@link FirefoxOptions#setProfile(FirefoxProfile)}
-   */
-  @Deprecated
-  public FirefoxDriver(FirefoxBinary binary, FirefoxProfile profile, Capabilities capabilities) {
-    this(getFirefoxOptions(capabilities)
-             .setBinary(binary)
-             .setProfile(profile)
-             .addCapabilities(capabilities));
-    warnAboutDeprecatedConstructor(
-        "FirefoxBinary, FirefoxProfile, Capabilities",
-        "setBinary(binary).setProfile(profile).addCapabilities(capabilities)");
+  public FirefoxDriver(FirefoxOptions options) {
+    super(toExecutor(options), dropCapabilities(options));
+    webStorage = new RemoteWebStorage(getExecuteMethod());
   }
 
-  /**
-   * @deprecated Prefer {@link FirefoxOptions#setBinary(FirefoxBinary)},
-   *   {@link FirefoxOptions#setProfile(FirefoxProfile)}
-   */
-  @Deprecated
-  public FirefoxDriver(
-      FirefoxBinary binary,
-      FirefoxProfile profile,
-      Capabilities desiredCapabilities,
-      Capabilities requiredCapabilities) {
-    this(getFirefoxOptions(desiredCapabilities)
-             .setBinary(binary).setProfile(profile)
-             .addCapabilities(desiredCapabilities)
-             .addCapabilities(requiredCapabilities));
-    warnAboutDeprecatedConstructor(
-        "FirefoxBinary, FirefoxProfile, Capabilities",
-        "setBinary(binary).setProfile(profile).addCapabilities(capabilities)");
+  public FirefoxDriver(FirefoxDriverService service) {
+    this(service, new FirefoxOptions());
   }
 
-  private FirefoxDriver(
-      CommandExecutor executor,
-      Capabilities desiredCapabilities,
-      Capabilities requiredCapabilities) {
-    super(executor,
-          dropCapabilities(desiredCapabilities).merge(dropCapabilities(requiredCapabilities)));
+  public FirefoxDriver(FirefoxDriverService service, FirefoxOptions options) {
+    super(new FirefoxDriverCommandExecutor(service), dropCapabilities(options));
+    webStorage = new RemoteWebStorage(getExecuteMethod());
   }
 
   private static CommandExecutor toExecutor(FirefoxOptions options) {
-    DriverService.Builder<?, ?> builder;
+    Objects.requireNonNull(options, "No options to construct executor from");
 
-    if (options.isLegacy()) {
-      builder = XpiDriverService.builder()
-          .withBinary(options.getBinaryOrNull().orElseGet(FirefoxBinary::new))
-          .withProfile(options.getProfile());
-    } else {
-      builder = new GeckoDriverService.Builder()
-          .usingFirefoxBinary(options.getBinaryOrNull().orElseGet(FirefoxBinary::new));
-    }
+    String sysProperty = System.getProperty(SystemProperty.DRIVER_USE_MARIONETTE);
+    boolean isLegacy = (sysProperty != null && ! Boolean.parseBoolean(sysProperty))
+                       ||  options.isLegacy();
 
-    return new DriverCommandExecutor(builder.build());
-  }
+    FirefoxDriverService.Builder<?, ?> builder =
+        StreamSupport.stream(ServiceLoader.load(DriverService.Builder.class).spliterator(), false)
+            .filter(b -> b instanceof FirefoxDriverService.Builder)
+            .map(b -> (FirefoxDriverService.Builder) b)
+            .filter(b -> b.isLegacy() == isLegacy)
+            .findFirst().orElseThrow(WebDriverException::new);
 
-  private static FirefoxOptions getFirefoxOptions(Capabilities capabilities) {
-    FirefoxOptions options = new FirefoxOptions();
-
-    if (capabilities == null) {
-      return options;
-    }
-
-    Object rawOptions = capabilities.getCapability(FIREFOX_OPTIONS);
-    if (rawOptions != null) {
-      if (rawOptions instanceof Map) {
-        try {
-          @SuppressWarnings("unchecked")
-          Map<String, Object> map = (Map<String, Object>) rawOptions;
-          rawOptions = FirefoxOptions.fromJsonMap(map);
-        } catch (IOException e) {
-          throw new WebDriverException(e);
-        }
-      }
-      if (rawOptions != null && !(rawOptions instanceof FirefoxOptions)) {
-        throw new WebDriverException(
-            "Firefox option was set, but is not a FirefoxOption: " + rawOptions);
-      }
-      options = (FirefoxOptions) rawOptions;
-    }
-
-    Object marionette = capabilities.getCapability(MARIONETTE);
-
-    if (marionette instanceof Boolean) {
-      options.setLegacy(!(Boolean) marionette);
-    }
-
-    return options;
-  }
-
-  private void warnAboutDeprecatedConstructor(String arguments, String alternative) {
-    LOG.warning(String.format(
-        "The FirefoxDriver constructor taking %s has been deprecated. Please use the " +
-        "FirefoxDriver(FirefoxOptions) constructor, configuring the FirefoxOptions like this: " +
-        "new FirefoxOptions().%s",
-        arguments,
-        alternative));
+    return new FirefoxDriverCommandExecutor(builder.withOptions(options).build());
   }
 
   @Override
@@ -255,6 +181,16 @@ public class FirefoxDriver extends RemoteWebDriver {
     throw new WebDriverException(
         "Setting the file detector only works on remote webdriver instances obtained " +
         "via RemoteWebDriver");
+  }
+
+  @Override
+  public LocalStorage getLocalStorage() {
+    return webStorage.getLocalStorage();
+  }
+
+  @Override
+  public SessionStorage getSessionStorage() {
+    return webStorage.getSessionStorage();
   }
 
   private static boolean isLegacy(Capabilities desiredCapabilities) {
@@ -266,8 +202,20 @@ public class FirefoxDriver extends RemoteWebDriver {
     return marionette instanceof Boolean && ! (Boolean) marionette;
   }
 
+  @Override
+  public String installExtension(Path path) {
+    return (String) execute(ExtraCommands.INSTALL_EXTENSION,
+                            ImmutableMap.of("path", path.toAbsolutePath().toString(),
+                                            "temporary", false)).getValue();
+  }
+
+  @Override
+  public void uninstallExtension(String extensionId) {
+    execute(ExtraCommands.UNINSTALL_EXTENSION, singletonMap("id", extensionId));
+  }
+
   private static Boolean forceMarionetteFromSystemProperty() {
-    String useMarionette = System.getProperty(DRIVER_USE_MARIONETTE);
+    String useMarionette = System.getProperty(SystemProperty.DRIVER_USE_MARIONETTE);
     if (useMarionette == null) {
       return null;
     }
@@ -282,17 +230,17 @@ public class FirefoxDriver extends RemoteWebDriver {
    */
   private static Capabilities dropCapabilities(Capabilities capabilities) {
     if (capabilities == null) {
-      return new DesiredCapabilities();
+      return new ImmutableCapabilities();
     }
 
-    DesiredCapabilities caps;
+    MutableCapabilities caps;
 
     if (isLegacy(capabilities)) {
       final Set<String> toRemove = Sets.newHashSet(BINARY, PROFILE);
-      caps = new DesiredCapabilities(
+      caps = new MutableCapabilities(
           Maps.filterKeys(capabilities.asMap(), key -> !toRemove.contains(key)));
     } else {
-      caps = new DesiredCapabilities(capabilities);
+      caps = new MutableCapabilities(capabilities);
     }
 
     // Ensure that the proxy is in a state fit to be sent to the extension

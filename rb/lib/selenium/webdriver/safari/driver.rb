@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -27,35 +27,43 @@ module Selenium
       #
 
       class Driver < WebDriver::Driver
+        include DriverExtensions::HasDebugger
+        include DriverExtensions::HasPermissions
         include DriverExtensions::TakesScreenshot
 
         def initialize(opts = {})
-          opts[:desired_capabilities] ||= Remote::Capabilities.safari
+          opts[:desired_capabilities] = create_capabilities(opts)
 
           unless opts.key?(:url)
             driver_path = opts.delete(:driver_path) || Safari.driver_path
+            driver_opts = opts.delete(:driver_opts) || {}
             port = opts.delete(:port) || Service::DEFAULT_PORT
 
-            opts[:driver_opts] ||= {}
-            if opts.key? :service_args
-              WebDriver.logger.deprecate ':service_args', "driver_opts: {args: #{opts[:service_args]}}"
-              opts[:driver_opts][:args] = opts.delete(:service_args)
-            end
-
-            @service = Service.new(driver_path, port, opts.delete(:driver_opts))
+            @service = Service.new(driver_path, port, driver_opts)
             @service.start
             opts[:url] = @service.uri
           end
 
           listener = opts.delete(:listener)
           @bridge = Remote::Bridge.handshake(opts)
+          @bridge.extend Bridge
+
           super(@bridge, listener: listener)
         end
 
         def quit
           super
         ensure
-          @service.stop if @service
+          @service&.stop
+        end
+
+        private
+
+        def create_capabilities(opts = {})
+          caps = opts.delete(:desired_capabilities) { Remote::Capabilities.safari }
+          options = opts.delete(:options) { Options.new }
+          caps.merge!(options.as_json)
+          caps
         end
 
       end # Driver

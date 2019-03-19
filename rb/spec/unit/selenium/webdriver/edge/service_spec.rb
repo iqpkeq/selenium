@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -17,16 +17,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
-require File.expand_path('../../spec_helper', __FILE__)
+require File.expand_path('../spec_helper', __dir__)
 
 module Selenium
   module WebDriver
     module Edge
       describe Service do
         let(:resp) { {'sessionId' => 'foo', 'value' => Remote::Capabilities.edge.as_json} }
-        let(:service) { double(Service, start: true, uri: 'http://example.com', host: 'localhost', binary_path: nil) }
+        let(:service) { instance_double(Service, start: true, uri: 'http://example.com', host: 'localhost', binary_path: nil) }
         let(:caps) { Remote::Capabilities.edge }
-        let(:http) { double(Remote::Http::Default, call: resp).as_null_object }
+        let(:http) { instance_double(Remote::Http::Default, call: resp).as_null_object }
 
         before do
           allow(Remote::Capabilities).to receive(:edge).and_return(caps)
@@ -58,25 +58,16 @@ module Selenium
         it 'accepts driver options' do
           driver_opts = {host: 'localhost',
                          package: '/path/to/pkg',
+                         silent: true,
                          verbose: true}
 
-          args = ["–host=#{driver_opts[:host]}",
-                  "–package=#{driver_opts[:package]}",
-                  "-verbose"]
+          args = ["--host=#{driver_opts[:host]}",
+                  "--package=#{driver_opts[:package]}",
+                  "--silent",
+                  "--verbose"]
 
           driver = Driver.new(http_client: http, driver_opts: driver_opts)
           expect(driver.instance_variable_get("@service").instance_variable_get("@extra_args")).to eq args
-        end
-
-        it 'deprecates `service_args`' do
-          args = ["--port-server=2323",
-                  "--whitelisted-ips=['192.168.0.1', '192.168.0.2']",
-                  "--silent=true",
-                  "--log-path=/path/to/log"]
-
-          expect(WebDriver.logger).to receive(:deprecate).with(':service_args', "driver_opts: {args: #{args}}")
-          @driver = Driver.new(http_client: http, service_args: args)
-          expect(@driver.instance_variable_get("@service").instance_variable_get("@extra_args")).to eq args
         end
       end
     end # Edge

@@ -31,6 +31,7 @@
 #include "FileUtilities.h"
 #include "RegistryUtilities.h"
 #include "StringUtilities.h"
+#include "WebDriverConstants.h"
 
 #define HTML_GETOBJECT_MSG L"WM_HTML_GETOBJECT"
 #define OLEACC_LIBRARY_NAME L"OLEACC.DLL"
@@ -93,6 +94,7 @@ BrowserFactory::BrowserFactory(void) {
   // Must be done in the constructor. Do not move to Initialize().
   this->GetExecutableLocation();
   this->GetIEVersion();
+  this->oleacc_instance_handle_ = NULL;
 }
 
 BrowserFactory::~BrowserFactory(void) {
@@ -300,7 +302,8 @@ void BrowserFactory::LaunchBrowserUsingCreateProcess(PROCESS_INFORMATION* proc_i
   executable_and_url.append(L" ");
   executable_and_url.append(this->initial_browser_url_);
 
-  LOG(TRACE) << "IE starting command line is: '" << LOGWSTRING(executable_and_url) << "'.";
+  LOG(TRACE) << "IE starting command line is: '"
+             << LOGWSTRING(executable_and_url) << "'.";
 
   LPWSTR command_line = new WCHAR[executable_and_url.size() + 1];
   wcscpy_s(command_line,
@@ -408,6 +411,16 @@ bool BrowserFactory::AttachToBrowser(ProcessWindowInfo* process_window_info,
   return attached;
 }
 
+bool BrowserFactory::IsBrowserProcessInitialized(DWORD process_id) {
+  ProcessWindowInfo info;
+  info.dwProcessId = process_id;
+  info.hwndBrowser = NULL;
+  info.pBrowser = NULL;
+  ::EnumWindows(&BrowserFactory::FindBrowserWindow,
+                reinterpret_cast<LPARAM>(&info));
+  return info.hwndBrowser != NULL;
+}
+
 bool BrowserFactory::AttachToBrowserUsingActiveAccessibility
                                     (ProcessWindowInfo* process_window_info,
                                      std::string* error_message) {
@@ -493,10 +506,14 @@ bool BrowserFactory::AttachToBrowserUsingShellWindows(
   LOG(TRACE) << "Entering BrowserFactory::AttachToBrowserUsingShellWindows";
 
   CComPtr<IShellWindows> shell_windows;
-  shell_windows.CoCreateInstance(CLSID_ShellWindows);
+  HRESULT hr = shell_windows.CoCreateInstance(CLSID_ShellWindows);
+  if (FAILED(hr)) {
+    LOGHR(WARN, hr) << "Unable to create an object using the IShellWindows interface with CoCreateInstance";
+    return false;
+  }
 
   CComPtr<IUnknown> enumerator_unknown;
-  HRESULT hr = shell_windows->_NewEnum(&enumerator_unknown);
+  hr = shell_windows->_NewEnum(&enumerator_unknown);
   if (FAILED(hr)) {
     LOGHR(WARN, hr) << "Unable to get enumerator from IShellWindows interface";
     return false;
@@ -695,7 +712,7 @@ int BrowserFactory::GetZoomLevel(IHTMLDocument2* document, IHTMLWindow2* window)
   return zoom;
 }
 
-IWebBrowser2* BrowserFactory::CreateBrowser() {
+IWebBrowser2* BrowserFactory::CreateBrowser(bool is_protected_mode) {
   LOG(TRACE) << "Entering BrowserFactory::CreateBrowser";
 
   IWebBrowser2* browser = NULL;
@@ -706,11 +723,20 @@ IWebBrowser2* BrowserFactory::CreateBrowser() {
     context = context | CLSCTX_ENABLE_CLOAKING;
   }
 
-  HRESULT hr = ::CoCreateInstance(CLSID_InternetExplorer,
-                                  NULL,
-                                  context,
-                                  IID_IWebBrowser2,
-                                  reinterpret_cast<void**>(&browser));
+  HRESULT hr = S_OK;
+  if (is_protected_mode) {
+    hr = ::CoCreateInstance(CLSID_InternetExplorer,
+                            NULL,
+                            context,
+                            IID_IWebBrowser2,
+                            reinterpret_cast<void**>(&browser));
+  } else {
+    hr = ::CoCreateInstance(CLSID_InternetExplorerMedium,
+                            NULL,
+                            context,
+                            IID_IWebBrowser2,
+                            reinterpret_cast<void**>(&browser));
+  }
   // When IWebBrowser2::Quit() is called, the wrapper process doesn't
   // exit right away. When that happens, CoCreateInstance can fail while
   // the abandoned iexplore.exe instance is still valid. The "right" way
@@ -775,6 +801,7 @@ bool BrowserFactory::CreateLowIntegrityLevelToken(HANDLE* process_token_handle,
                                 TokenPrimary,
                                 mic_token_handle);
     if (!result) {
+      LOGERR(WARN) << "CreateLowIntegrityLevelToken: Could not duplicate token";
       ::CloseHandle(*process_token_handle);
     }
    }
@@ -785,6 +812,7 @@ bool BrowserFactory::CreateLowIntegrityLevelToken(HANDLE* process_token_handle,
       tml.Label.Attributes = SE_GROUP_INTEGRITY;
       tml.Label.Sid = *sid;
     } else {
+      LOGERR(WARN) << "CreateLowIntegrityLevelToken: Could not convert string SID to SID";
       ::CloseHandle(*process_token_handle);
       ::CloseHandle(*mic_token_handle);
     }
@@ -796,6 +824,7 @@ bool BrowserFactory::CreateLowIntegrityLevelToken(HANDLE* process_token_handle,
                                    &tml,
                                    sizeof(tml) + ::GetLengthSid(*sid));
     if (!result) {
+      LOGERR(WARN) << "CreateLowIntegrityLevelToken: Could not set token information to low level";
       ::CloseHandle(*process_token_handle);
       ::CloseHandle(*mic_token_handle);
       ::LocalFree(*sid);
@@ -893,6 +922,8 @@ void BrowserFactory::InvokeClearCacheUtility(bool use_low_integrity_level) {
         ::CloseHandle(process_info.hProcess);
         ::CloseHandle(process_info.hThread);
         LOG(DEBUG) << "Cache clearing complete.";
+      } else {
+        LOGERR(WARN) << "Could not create process for clearing cache.";
       }
     }
 
@@ -956,6 +987,7 @@ BOOL CALLBACK BrowserFactory::FindDialogWindowForProcess(HWND hwnd, LPARAM arg) 
 
   // Could this be an dialog window?
   // 7 == "#32770\0"
+  // 29 == "Credential Dialog Xaml Host\0"
   // 34 == "Internet Explorer_TridentDlgFrame\0"
   char name[34];
   if (::GetClassNameA(hwnd, name, 34) == 0) {
@@ -964,7 +996,8 @@ BOOL CALLBACK BrowserFactory::FindDialogWindowForProcess(HWND hwnd, LPARAM arg) 
   }
   
   if (strcmp(ALERT_WINDOW_CLASS, name) != 0 && 
-      strcmp(HTML_DIALOG_WINDOW_CLASS, name) != 0) {
+      strcmp(HTML_DIALOG_WINDOW_CLASS, name) != 0 &&
+      strcmp(SECURITY_DIALOG_WINDOW_CLASS, name) != 0) {
     return TRUE;
   } else {
     // If the window style has the WS_DISABLED bit set or the 
@@ -1007,9 +1040,17 @@ void BrowserFactory::GetExecutableLocation() {
                                 L"\\LocalServer32";
     std::wstring executable_location;
 
+    // If we are a 32-bit driver instance, running on 64-bit Windows,
+    // we want to bypass the registry redirection so that we can get
+    // the actual location of the browser executable. The primary place
+    // this matters is when getting the browser version; the secondary
+    // place is if the user specifies to use the CreateProcess API for
+    // launching the browser, hence the 'true' argument in the following
+    // call to RegistryUtilities::GetRegistryValue.
     if (RegistryUtilities::GetRegistryValue(HKEY_LOCAL_MACHINE,
                                             location_key,
                                             L"",
+                                            true,
                                             &executable_location)) {
       // If the executable location in the registry has an environment
       // variable in it, expand the environment variable to an absolute

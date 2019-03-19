@@ -18,7 +18,7 @@
 package com.thoughtworks.selenium.testing;
 
 import org.openqa.selenium.environment.webserver.JettyAppServer;
-import org.openqa.selenium.testing.InProject;
+import org.openqa.selenium.build.InProject;
 import org.seleniumhq.jetty9.servlet.ServletContextHandler;
 
 import java.nio.file.Path;
@@ -41,6 +41,7 @@ public class SeleniumAppServer extends JettyAppServer {
     return InProject.locate("java/server/test/org/openqa/selenium");
   }
 
+  @Override
   protected String getMainContextPath(String relativeUrl) {
     if (!relativeUrl.startsWith("/")) {
       relativeUrl = RC_CONTEXT_PATH + "/" + relativeUrl;

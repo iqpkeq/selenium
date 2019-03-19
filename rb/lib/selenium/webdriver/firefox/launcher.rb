@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -84,17 +84,18 @@ module Selenium
           poller = SocketPoller.new(@host, @port, STABLE_CONNECTION_TIMEOUT)
 
           return if poller.connected?
+
           @binary.quit
           error = "unable to obtain stable firefox connection in #{STABLE_CONNECTION_TIMEOUT} seconds (#{@host}:#{@port})"
           raise Error::WebDriverError, error
         end
 
         def fetch_profile
-          if @profile_name
-            @profile = Profile.from_name @profile_name
-          else
-            @profile = Profile.new
-          end
+          @profile = if @profile_name
+                       Profile.from_name @profile_name
+                     else
+                       Profile.new
+                     end
         end
 
         def assert_profile

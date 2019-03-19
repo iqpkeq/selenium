@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -22,44 +22,42 @@ require_relative '../spec_helper'
 module Selenium
   module WebDriver
     module Chrome
-      compliant_on browser: :chrome do
-        describe Options do
-          subject(:options) { Selenium::WebDriver::Chrome::Options.new }
+      describe Options, only: {driver: :chrome} do
+        subject(:options) { described_class.new }
 
-          it 'passes emulated device correctly' do
-            options.add_emulation(device_name: 'Google Nexus 6')
+        it 'passes emulated device correctly' do
+          options.add_emulation(device_name: 'Nexus 5')
 
-            begin
-              driver = Selenium::WebDriver.for(:chrome, options: options)
-              ua = driver.execute_script 'return window.navigator.userAgent'
-              expect(ua).to include('Nexus 6')
-            ensure
-              driver.quit if driver
-            end
+          create_driver!(options: options) do |driver|
+            ua = driver.execute_script 'return window.navigator.userAgent'
+            expect(ua).to include('Nexus 5')
           end
+        end
 
-          it 'passes emulated user agent correctly' do
-            options.add_emulation(user_agent: 'foo;bar')
+        it 'passes emulated user agent correctly' do
+          options.add_emulation(user_agent: 'foo;bar')
 
-            begin
-              driver = Selenium::WebDriver.for(:chrome, options: options)
-              ua = driver.execute_script 'return window.navigator.userAgent'
-              expect(ua).to eq('foo;bar')
-            ensure
-              driver.quit if driver
-            end
+          create_driver!(options: options) do |driver|
+            ua = driver.execute_script 'return window.navigator.userAgent'
+            expect(ua).to eq('foo;bar')
           end
+        end
 
-          it 'passes args correctly' do
-            options.add_argument('--user-agent=foo;bar')
+        it 'passes args correctly' do
+          options.add_argument('--user-agent=foo;bar')
 
-            begin
-              driver = Selenium::WebDriver.for(:chrome, options: options)
-              ua = driver.execute_script 'return window.navigator.userAgent'
-              expect(ua).to eq('foo;bar')
-            ensure
-              driver.quit if driver
-            end
+          create_driver!(options: options) do |driver|
+            ua = driver.execute_script 'return window.navigator.userAgent'
+            expect(ua).to eq('foo;bar')
+          end
+        end
+
+        it 'should be able to run in headless mode with #headless!' do
+          options.headless!
+
+          create_driver!(options: options) do |driver|
+            ua = driver.execute_script 'return window.navigator.userAgent'
+            expect(ua).to match(/HeadlessChrome/)
           end
         end
       end

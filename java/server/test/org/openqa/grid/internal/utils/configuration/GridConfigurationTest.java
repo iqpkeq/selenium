@@ -25,16 +25,22 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
-import com.google.common.collect.Maps;
-
 import org.junit.Test;
 import org.openqa.grid.web.servlet.ResourceServlet;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
 
 public class GridConfigurationTest {
+
+  static final Integer DEFAULT_TIMEOUT = StandaloneConfigurationTest.DEFAULT_TIMEOUT;
+  static final Integer DEFAULT_BROWSER_TIMEOUT = StandaloneConfigurationTest.DEFAULT_BROWSER_TIMEOUT;
+  static final String DEFAULT_HOST = StandaloneConfigurationTest.DEFAULT_HOST;
+  static final Integer DEFAULT_PORT = StandaloneConfigurationTest.DEFAULT_PORT;
+  static final Boolean DEFAULT_DEBUG_TOGGLE = StandaloneConfigurationTest.DEFAULT_DEBUG_TOGGLE;
+
   @Test
   public void testDefaults() {
     GridConfiguration gc = new GridConfiguration();
@@ -43,17 +49,16 @@ public class GridConfigurationTest {
     assertNull(gc.maxSession);
     assertNotNull(gc.custom);
     assertTrue(gc.custom.isEmpty());
-    assertNull(gc.host);
+    assertEquals(DEFAULT_HOST, gc.host);
     assertNotNull(gc.servlets);
     assertTrue(gc.servlets.isEmpty());
     assertNotNull(gc.withoutServlets);
     assertTrue(gc.withoutServlets.isEmpty());
     // these values come from the StandaloneConfiguration base class
-    assertEquals(GridConfiguration.DEFAULT_PORT, gc.port);
-    assertEquals(GridConfiguration.DEFAULT_TIMEOUT, gc.timeout);
-    assertEquals(GridConfiguration.DEFAULT_BROWSER_TIMEOUT, gc.browserTimeout);
-    assertEquals(GridConfiguration.DEFAULT_DEBUG_TOGGLE, gc.debug);
-    assertFalse(gc.help);
+    assertEquals(DEFAULT_PORT, gc.port);
+    assertEquals(DEFAULT_TIMEOUT, gc.timeout);
+    assertEquals(DEFAULT_BROWSER_TIMEOUT, gc.browserTimeout);
+    assertEquals(DEFAULT_DEBUG_TOGGLE, gc.debug);
     assertNull(gc.jettyMaxThreads);
     assertNull(gc.log);
     assertEquals("standalone", gc.role);
@@ -74,13 +79,13 @@ public class GridConfigurationTest {
     GridConfiguration gc = new GridConfiguration();
     GridConfiguration other = new GridConfiguration();
     other.cleanUpCycle = 10;
-    Map<String, String> custom = Maps.newHashMap();
+    Map<String, String> custom = new HashMap<>();
     custom.put("foo", "bar");
     other.custom = custom;
     other.host = "10.10.10.1";
     other.maxSession = 20;
-    other.servlets = Arrays.asList(new String[] { "com.foo.ServletA" });
-    other.withoutServlets = Arrays.asList(new String[] { "com.foo.ServletB" });
+    other.servlets = Arrays.asList("com.foo.ServletA");
+    other.withoutServlets = Arrays.asList("com.foo.ServletB");
     gc.merge(other);
 
     assertEquals(other.cleanUpCycle, gc.cleanUpCycle);

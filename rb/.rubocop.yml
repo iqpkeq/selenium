@@ -1,11 +1,17 @@
-AllCops:
-  TargetRubyVersion: 2.0
+require:
+  - rubocop-rspec
 
-Style/SpaceInsideHashLiteralBraces:
+AllCops:
+  TargetRubyVersion: 2.3
+
+Layout/SpaceInsideHashLiteralBraces:
   EnforcedStyle: no_space
 
 Style/BracesAroundHashParameters:
   EnforcedStyle: context_dependent
+
+Style/BlockDelimiters:
+  EnforcedStyle: braces_for_chaining
 
 Style/Alias:
   EnforcedStyle: prefer_alias_method
@@ -30,47 +36,64 @@ Style/NumericLiterals:
   Enabled: false
 
 # Bug
-Style/FileName:
+Naming/FileName:
   Exclude:
     - 'lib/selenium-webdriver.rb'
 
-# These need to be fixed
-Style/MutableConstant:
-  Exclude:
-    - 'lib/selenium/webdriver/common/socket_poller.rb'
-    - 'lib/selenium/webdriver/remote/legacy_bridge.rb'
-    - 'lib/selenium/webdriver/remote/w3c_bridge.rb'
+Naming/UncommunicativeMethodParamName:
+  AllowedNames:
+    - x
+    - y
+    - ex
+    - by
+    - id
+    - io
+
+Style/CommentedKeyword:
+  Enabled: false
 
 # TODO: Refactor Chrome::Bridge#create_capabilities
 Metrics/PerceivedComplexity:
   Max: 11
   Exclude:
-    - 'lib/selenium/webdriver/chrome/legacy_bridge.rb'
+    - 'lib/selenium/webdriver/chrome/driver.rb'
+    - 'lib/selenium/webdriver/remote/w3c/capabilities.rb'
 
 Metrics/CyclomaticComplexity:
   Max: 9
   Exclude:
-    - 'lib/selenium/webdriver/chrome/legacy_bridge.rb'
-    - 'lib/selenium/webdriver/common/driver.rb'
+    - 'lib/selenium/webdriver/chrome/driver.rb'
+    - 'lib/selenium/webdriver/remote/w3c/capabilities.rb'
     - 'spec/integration/selenium/webdriver/spec_support/test_environment.rb'
 
 Metrics/ClassLength:
   Max: 140
   Exclude:
     - 'lib/selenium/webdriver/firefox/profile.rb'
-    - 'lib/selenium/webdriver/remote/legacy_bridge.rb'
     - 'lib/selenium/webdriver/remote/capabilities.rb'
-    - 'lib/selenium/webdriver/remote/w3c_bridge.rb'
+    - 'lib/selenium/webdriver/remote/oss/bridge.rb'
+    - 'lib/selenium/webdriver/remote/w3c/bridge.rb'
+    - 'lib/selenium/webdriver/remote/w3c/capabilities.rb'
     - 'spec/integration/selenium/webdriver/spec_support/test_environment.rb'
 
 Metrics/AbcSize:
   Max: 33
   Exclude:
-    - 'lib/selenium/webdriver/chrome/legacy_bridge.rb'
+    - 'lib/selenium/webdriver/chrome/driver.rb'
+    - 'lib/selenium/webdriver/remote/w3c/capabilities.rb'
     - 'lib/selenium/webdriver/support/color.rb'
 
 Metrics/LineLength:
   Max: 130
+  Exclude:
+    - 'lib/selenium/webdriver/remote/w3c/capabilities.rb'
+    - 'lib/selenium/webdriver/remote/bridge.rb'
+    - 'lib/selenium/webdriver/ie/service.rb'
+    - 'spec/unit/selenium/server_spec.rb'
+    - 'spec/integration/selenium/webdriver/timeout_spec.rb'
+  IgnoredPatterns:
+      - '\s+# rubocop'
+      - '^\s*#'
 
 Metrics/ModuleLength:
   Exclude:
@@ -80,8 +103,53 @@ Metrics/ModuleLength:
 Metrics/MethodLength:
   Max: 33
   Exclude:
-    - 'lib/selenium/webdriver/chrome/legacy_bridge.rb'
+    - 'lib/selenium/webdriver/chrome/driver.rb'
 
 Metrics/BlockLength:
   Exclude:
     - "**/*_spec.rb"
+    - 'selenium-webdriver.gemspec'
+
+Metrics/ParameterLists:
+  Exclude:
+    - 'lib/selenium/webdriver/common/interactions/pointer_input.rb'
+
+Layout/EmptyLineAfterMagicComment:
+  Enabled: false
+
+Layout/EmptyLinesAroundClassBody:
+  Enabled: false
+
+Layout/EmptyLinesAroundModuleBody:
+  Enabled: false
+
+Style/StringLiterals:
+  Enabled: false
+
+Style/Dir:
+  Exclude:
+    - 'selenium-webdriver.gemspec'
+
+Style/RescueStandardError:
+  Enabled: false
+
+RSpec/ExampleWording:
+  Enabled: false
+
+RSpec/MultipleExpectations:
+  Enabled: false
+
+RSpec/ExampleLength:
+  Enabled: false
+
+RSpec/DescribeClass:
+  Enabled: false
+
+RSpec/ContextWording:
+  Enabled: false
+
+RSpec/AnyInstance:
+  Enabled: false
+
+RSpec/MessageSpies:
+  Enabled: false

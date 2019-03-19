@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -28,6 +28,7 @@ module Selenium
         #
 
         class Driver < WebDriver::Driver
+          include DriverExtensions::HasAddons
           include DriverExtensions::HasWebStorage
           include DriverExtensions::TakesScreenshot
 
@@ -36,15 +37,10 @@ module Selenium
 
             unless opts.key?(:url)
               driver_path = opts.delete(:driver_path) || Firefox.driver_path
+              driver_opts = opts.delete(:driver_opts) || {}
               port = opts.delete(:port) || Service::DEFAULT_PORT
 
-              opts[:driver_opts] ||= {}
-              if opts.key? :service_args
-                WebDriver.logger.deprecate ':service_args', "driver_opts: {args: #{opts[:service_args]}}"
-                opts[:driver_opts][:args] = opts.delete(:service_args)
-              end
-
-              @service = Service.new(driver_path, port, opts.delete(:driver_opts))
+              @service = Service.new(driver_path, port, driver_opts)
               @service.start
               opts[:url] = @service.uri
             end
@@ -55,6 +51,7 @@ module Selenium
             bridge = Remote::Bridge.new(opts)
             capabilities = bridge.create_session(desired_capabilities)
             @bridge = Remote::W3C::Bridge.new(capabilities, bridge.session_id, opts)
+            @bridge.extend Marionette::Bridge
 
             super(@bridge, listener: listener)
           end
@@ -66,27 +63,34 @@ module Selenium
           def quit
             super
           ensure
-            @service.stop if @service
+            @service&.stop
           end
 
           private
 
           def create_capabilities(opts)
-            caps = Remote::W3C::Capabilities.firefox
-            caps.merge!(opts.delete(:desired_capabilities)) if opts.key? :desired_capabilities
-            firefox_options = caps[:firefox_options] || {}
-            firefox_options = firefox_options.merge(opts[:firefox_options]) if opts.key?(:firefox_options)
-            if opts.key?(:profile)
-              profile = opts.delete(:profile)
-              profile = Profile.from_name(profile) unless profile.is_a?(Profile)
-              firefox_options[:profile] = profile.encoded
+            caps = opts.delete(:desired_capabilities) { Remote::W3C::Capabilities.firefox }
+            options = opts.delete(:options) { Options.new }
+
+            firefox_options = opts.delete(:firefox_options)
+            if firefox_options
+              WebDriver.logger.deprecate ':firefox_options', 'Selenium::WebDriver::Firefox::Options'
+              firefox_options.each do |key, value|
+                options.add_option(key, value)
+              end
             end
 
-            Binary.path = firefox_options[:binary] if firefox_options.key?(:binary)
-            caps[:firefox_options] = firefox_options unless firefox_options.empty?
+            profile = opts.delete(:profile)
+            if profile
+              WebDriver.logger.deprecate ':profile', 'Selenium::WebDriver::Firefox::Options#profile='
+              options.profile = profile
+            end
+
+            options = options.as_json
+            caps.merge!(options) unless options.empty?
+
             caps
           end
-
         end # Driver
       end # Marionette
     end # Firefox

@@ -30,6 +30,8 @@ import org.junit.Test;
 import org.openqa.grid.common.RegistrationRequest;
 import org.openqa.grid.internal.listeners.TimeoutListener;
 import org.openqa.grid.internal.mock.GridHelper;
+import org.openqa.grid.internal.utils.configuration.GridHubConfiguration;
+import org.openqa.grid.web.Hub;
 import org.openqa.grid.web.servlet.handler.RequestHandler;
 import org.openqa.selenium.remote.CapabilityType;
 import org.openqa.selenium.remote.DesiredCapabilities;
@@ -55,12 +57,13 @@ public class SessionTimesOutTest {
     req.getConfiguration().host = "localhost";
   }
 
-  class MyRemoteProxyTimeout extends DetachedRemoteProxy implements TimeoutListener {
+  class MyRemoteProxyTimeout extends BaseRemoteProxy implements TimeoutListener {
 
-    public MyRemoteProxyTimeout(RegistrationRequest request, Registry registry) {
+    public MyRemoteProxyTimeout(RegistrationRequest request, GridRegistry registry) {
       super(request, registry);
     }
 
+    @Override
     public void beforeRelease(TestSession session) {
     }
   }
@@ -71,7 +74,7 @@ public class SessionTimesOutTest {
   @Test(timeout = 10000)
   public void testTimeout() throws InterruptedException {
 
-    Registry registry = Registry.newInstance();
+    GridRegistry registry = DefaultGridRegistry.newInstance(new Hub(new GridHubConfiguration()));
     RemoteProxy p1 = new MyRemoteProxyTimeout(req, registry);
     p1.setupTimeoutListener();
 
@@ -96,12 +99,13 @@ public class SessionTimesOutTest {
 
   private static boolean timeoutDone = false;
 
-  class MyRemoteProxyTimeoutSlow extends DetachedRemoteProxy implements TimeoutListener {
+  class MyRemoteProxyTimeoutSlow extends BaseRemoteProxy implements TimeoutListener {
 
-    public MyRemoteProxyTimeoutSlow(RegistrationRequest request, Registry registry) {
+    public MyRemoteProxyTimeoutSlow(RegistrationRequest request, GridRegistry registry) {
       super(request, registry);
     }
 
+    @Override
     public void beforeRelease(TestSession session) {
       try {
         Thread.sleep(1000);
@@ -115,9 +119,9 @@ public class SessionTimesOutTest {
   @Ignore(value = "flaky in travis CI")
   @Test(timeout = 20000)
   public void testTimeoutSlow() throws InterruptedException {
-    Registry registry = Registry.newInstance();
-    registry.getConfiguration().timeout = 1800;
-    registry.getConfiguration().cleanUpCycle = null;
+    GridRegistry registry = DefaultGridRegistry.newInstance(new Hub(new GridHubConfiguration()));
+    registry.getHub().getConfiguration().timeout = 1800;
+    registry.getHub().getConfiguration().cleanUpCycle = null;
     RemoteProxy p1 = new MyRemoteProxyTimeoutSlow(req, registry);
     p1.setupTimeoutListener();
 
@@ -153,12 +157,13 @@ public class SessionTimesOutTest {
     }
   }
 
-  class MyBuggyRemoteProxyTimeout extends DetachedRemoteProxy implements TimeoutListener {
+  class MyBuggyRemoteProxyTimeout extends BaseRemoteProxy implements TimeoutListener {
 
-    public MyBuggyRemoteProxyTimeout(RegistrationRequest request, Registry registry) {
+    public MyBuggyRemoteProxyTimeout(RegistrationRequest request, GridRegistry registry) {
       super(request, registry);
     }
 
+    @Override
     public void beforeRelease(TestSession session) {
       throw new NullPointerException();
     }
@@ -167,7 +172,8 @@ public class SessionTimesOutTest {
   // a proxy throwing an exception will end up not releasing the resources.
   @Test(timeout = 5000)
   public void testTimeoutBug() throws InterruptedException {
-    final Registry registry = Registry.newInstance();
+    final GridRegistry registry =
+        DefaultGridRegistry.newInstance(new Hub(new GridHubConfiguration()));
     RemoteProxy p1 = new MyBuggyRemoteProxyTimeout(req, registry);
     p1.setupTimeoutListener();
 
@@ -180,6 +186,7 @@ public class SessionTimesOutTest {
       final RequestHandler newSessionRequest2 =
           GridHelper.createNewSessionHandler(registry, app1);
       new Thread(new Runnable() {  // Thread safety reviewed
+        @Override
         public void run() {
           // the request should never be processed because the
           // resource is not released by the buggy proxy
@@ -196,12 +203,13 @@ public class SessionTimesOutTest {
     }
   }
 
-  class MyStupidConfig extends DetachedRemoteProxy implements TimeoutListener {
+  class MyStupidConfig extends BaseRemoteProxy implements TimeoutListener {
 
-    public MyStupidConfig(RegistrationRequest request, Registry registry) {
+    public MyStupidConfig(RegistrationRequest request, GridRegistry registry) {
       super(request, registry);
     }
 
+    @Override
     public void beforeRelease(TestSession session) {
       session.put("FLAG", true);
       session.put("MustSupportNullValue", null);
@@ -216,13 +224,14 @@ public class SessionTimesOutTest {
         {1, 5},
         // and invalid ones
         {-1, 5}, {5, -1}, {-1, -1}, {0, 0}};
-    java.util.List<Registry> registryList = new ArrayList<>();
+    java.util.List<GridRegistry> registryList = new ArrayList<>();
     try {
       for (Object[] c : configs) {
         // timeout is in seconds
         int timeout = (Integer) c[0];
         int cycle = (Integer) c[1];
-        Registry registry = Registry.newInstance();
+        GridRegistry registry =
+            DefaultGridRegistry.newInstance(new Hub(new GridHubConfiguration()));
         registryList.add(registry);
 
         RegistrationRequest req = new RegistrationRequest();
@@ -233,8 +242,8 @@ public class SessionTimesOutTest {
         req.getConfiguration().cleanUpCycle = cycle;
         req.getConfiguration().host = "localhost";
 
-        registry.getConfiguration().cleanUpCycle = cycle;
-        registry.getConfiguration().timeout = timeout;
+        registry.getHub().getConfiguration().cleanUpCycle = cycle;
+        registry.getHub().getConfiguration().timeout = timeout;
 
         final MyStupidConfig proxy = new MyStupidConfig(req, registry);
         proxy.setupTimeoutListener();
@@ -256,7 +265,7 @@ public class SessionTimesOutTest {
         }
       }
     } finally {
-      for (Registry registry : registryList) {
+      for (GridRegistry registry : registryList) {
         registry.stop();
       }
     }

@@ -17,54 +17,59 @@
 
 package org.openqa.grid.web.servlet;
 
+import static java.util.Collections.EMPTY_LIST;
+import static java.util.Collections.EMPTY_MAP;
+import static java.util.Collections.singletonList;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonObject;
-import com.google.gson.annotations.SerializedName;
 
 import org.junit.Before;
 import org.junit.Test;
 import org.openqa.grid.common.RegistrationRequest;
 import org.openqa.grid.common.exception.GridConfigurationException;
-import org.openqa.grid.internal.Registry;
+import org.openqa.grid.internal.DefaultGridRegistry;
+import org.openqa.grid.internal.GridRegistry;
 import org.openqa.grid.internal.RemoteProxy;
+import org.openqa.grid.internal.utils.configuration.GridHubConfiguration;
 import org.openqa.grid.internal.utils.configuration.GridNodeConfiguration;
-import org.openqa.selenium.remote.DesiredCapabilities;
+import org.openqa.grid.web.Hub;
+import org.openqa.selenium.firefox.FirefoxOptions;
 import org.openqa.testing.FakeHttpServletResponse;
 import org.seleniumhq.jetty9.server.handler.ContextHandler;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletResponse;
 
-public class RegistrationServletTest extends BaseServletTest {
-  private class BaseRequest {
-    final String name = "proxy-foo";
-    final String description = "a fictitious proxy";
-    @SerializedName( "class" )
-    final String clazz = BaseRequest.class.getCanonicalName();
-    String id;
-  }
+public class RegistrationServletTest extends RegistrationAwareServletTest {
 
-  private final class RequestV2 extends BaseRequest {
-    final Map<String, Object> configuration = new HashMap<>();
-    final List<DesiredCapabilities> capabilities = new ArrayList<>();
-  }
+  private Map<String, Object> requestWithoutConfig;
+  private Map<String, Object> grid2Request;
+  private Map<String, Object> grid3Request;
 
-  private final class InvalidV2Request extends BaseRequest {
-    final List<DesiredCapabilities> capabilities = new ArrayList<>();
-  }
+  @Before
+  public void fillBaseRequest() {
+    // This base request contains most of the fields we normally see serialised, but lacks the
+    // "configuration" and "capabilities" fields.
+    Map<String, Object> baseRequest = new TreeMap<>();
+    baseRequest.put("name", "proxy-foo");
+    baseRequest.put("description", "a fictitious proxy");
+    baseRequest.put("class", "com.example.grid.BaseRequest");
 
-  private final class RequestV3Beta extends BaseRequest {
-    final GridNodeConfiguration configuration = new GridNodeConfiguration();
-    final List<DesiredCapabilities> capabilities = new ArrayList<>();
+    requestWithoutConfig = new TreeMap<>(baseRequest);
+    requestWithoutConfig.put("capabilities", EMPTY_LIST);
+
+    grid2Request = new TreeMap<>(baseRequest);
+    grid2Request.put("capabilities", EMPTY_LIST);
+    grid2Request.put("configuration", EMPTY_MAP);
+
+    grid3Request = new TreeMap<>(baseRequest);
+    grid3Request.put("capabilities", EMPTY_LIST);
+    grid3Request.put("configuration", new GridNodeConfiguration());
   }
 
   @Before
@@ -73,43 +78,28 @@ public class RegistrationServletTest extends BaseServletTest {
       @Override
       public ServletContext getServletContext() {
         final ContextHandler.Context servletContext = new ContextHandler().getServletContext();
-        servletContext.setAttribute(Registry.KEY, Registry.newInstance());
+        servletContext.setAttribute(GridRegistry.KEY, DefaultGridRegistry
+            .newInstance(new Hub(new GridHubConfiguration())));
         return servletContext;
       }
     };
     servlet.init();
   }
 
-  /**
-   * Gives the servlet some time to add the proxy -- which happens on a separate thread.
-   */
-  private void waitForServletToAddProxy() throws Exception {
-    int tries = 0;
-    int size;
-    while (tries < 10) {
-      size = ((RegistrationServlet) servlet).getRegistry().getAllProxies().size();
-      if (size > 0) {
-        break;
-      }
-      Thread.sleep(1000);
-      tries += 1;
-    }
-  }
+
 
   /**
    * Tests that the registration request servlet throws an error for a request without a proxy
    * configuration
    */
-  @Test(expected = GridConfigurationException.class)
-  public void testInvalidV2Registration() throws Exception {
-    final InvalidV2Request request = new InvalidV2Request();
-    request.capabilities.add(DesiredCapabilities.firefox());
-    request.id = "http://dummynode:1111";
-    final JsonObject json =  new GsonBuilder().serializeNulls().create()
-      .toJsonTree(request, InvalidV2Request.class).getAsJsonObject();
-    sendCommand("POST", "/", json);
-  }
+  @Test
+  public void testInvalidV2Registration() {
+    requestWithoutConfig.put("capabilities", singletonList(new FirefoxOptions()));
+    requestWithoutConfig.put("id", "http://dummynode:1111");
 
+    assertThatExceptionOfType(GridConfigurationException.class)
+        .isThrownBy(() -> sendCommand("POST", "/", requestWithoutConfig));
+  }
 
   /**
    * Tests that the registration request servlet can process a V2 RegistrationRequest which
@@ -117,56 +107,59 @@ public class RegistrationServletTest extends BaseServletTest {
    */
   @Test
   public void testLegacyV2Registration() throws Exception {
-    final RequestV2 request = new RequestV2();
-    request.configuration.put("servlets", "foo,bar,baz");
-    request.configuration.put("registerCycle", 30001);
-    request.configuration.put("proxy", null);
-    request.capabilities.add(DesiredCapabilities.firefox());
-    request.id = "http://dummynode:1234";
-    final JsonObject json = new GsonBuilder().serializeNulls().create()
-      .toJsonTree(request, RequestV2.class).getAsJsonObject();
-    final FakeHttpServletResponse response = sendCommand("POST", "/", json);
+    Map<String, Object> config = new TreeMap<>();
+    config.put("servlets", "foo,bar,baz");
+    config.put("registerCycle", 30001);
+    config.put("proxy", null);
+    grid2Request.put("configuration", config);
+
+    grid2Request.put("capabilities", singletonList(new FirefoxOptions()));
+    String id = "http://dummynode:1234";
+    grid2Request.put("id", id);
+
+    final FakeHttpServletResponse response = sendCommand("POST", "/", grid2Request);
     waitForServletToAddProxy();
 
     assertEquals(HttpServletResponse.SC_OK, response.getStatus());
     assertEquals(((RegistrationServlet) servlet).getRegistry().getAllProxies().size(), 1);
 
     final RemoteProxy proxy = ((RegistrationServlet) servlet).getRegistry().getAllProxies()
-      .getProxyById(request.id);
+      .getProxyById(id);
     assertNotNull(proxy);
     assertEquals(3, proxy.getConfig().servlets.size());
     assertEquals(1, proxy.getConfig().capabilities.size());
     assertEquals(30001, proxy.getConfig().registerCycle.intValue());
-    assertEquals(request.id, proxy.getConfig().id);
+    assertEquals(id, proxy.getConfig().id);
   }
 
 
   /**
    * Tests that the registration request servlet can process a V2 RegistrationRequest from
-   * a 3.0.0-beta node.
+   * a 3.x node.
    */
   @Test
   public void testLegacyV3BetaRegistration() throws Exception {
-    final RequestV3Beta request = new RequestV3Beta();
-    request.configuration.capabilities.clear();
-    request.configuration.proxy = null;
-    request.capabilities.add(DesiredCapabilities.firefox());
-    request.id = "http://dummynode:2345";
-    final JsonObject json = new GsonBuilder().serializeNulls().create()
-      .toJsonTree(request, RequestV3Beta.class).getAsJsonObject();
-    final FakeHttpServletResponse response = sendCommand("POST", "/", json);
+    GridNodeConfiguration config = new GridNodeConfiguration();
+    config.capabilities.clear();
+    config.proxy = null;
+    grid3Request.put("configuration", config);
+
+    grid3Request.put("capabilities", singletonList(new FirefoxOptions()));
+    String id = "http://dummynode:2345";
+    grid3Request.put("id", id);
+    final FakeHttpServletResponse response = sendCommand("POST", "/", grid3Request);
     waitForServletToAddProxy();
 
     assertEquals(HttpServletResponse.SC_OK, response.getStatus());
     assertEquals(((RegistrationServlet) servlet).getRegistry().getAllProxies().size(), 1);
 
     final RemoteProxy proxy = ((RegistrationServlet) servlet).getRegistry().getAllProxies()
-      .getProxyById(request.id);
+      .getProxyById(id);
     assertNotNull(proxy);
     assertEquals(0, proxy.getConfig().servlets.size());
     assertEquals(1, proxy.getConfig().capabilities.size());
-    assertEquals(request.configuration.registerCycle.intValue(), proxy.getConfig().registerCycle.intValue());
-    assertEquals(request.id, proxy.getConfig().id);
+    assertEquals(config.registerCycle.intValue(), proxy.getConfig().registerCycle.intValue());
+    assertEquals(id, proxy.getConfig().id);
   }
 
 

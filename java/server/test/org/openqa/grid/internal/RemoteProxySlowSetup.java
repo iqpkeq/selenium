@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 package org.openqa.grid.internal;
 
 import static org.junit.Assert.assertEquals;
@@ -26,18 +25,20 @@ import org.junit.Before;
 import org.junit.Test;
 import org.openqa.grid.common.RegistrationRequest;
 import org.openqa.grid.internal.listeners.RegistrationListener;
+import org.openqa.grid.internal.utils.configuration.GridHubConfiguration;
 import org.openqa.grid.internal.utils.configuration.GridNodeConfiguration;
+import org.openqa.grid.web.Hub;
 
 public class RemoteProxySlowSetup {
 
   private RemoteProxy p1;
   private RemoteProxy p2;
 
-  private Registry registry;
+  private GridRegistry registry;
 
   @Before
   public void setup() {
-    registry = Registry.newInstance();
+    registry = DefaultGridRegistry.newInstance(new Hub(new GridHubConfiguration()));
     // create 2 proxy that are equal and have a slow onRegistration
     // p1.equals(p2) = true
     GridNodeConfiguration config1 = new GridNodeConfiguration();
@@ -53,11 +54,13 @@ public class RemoteProxySlowSetup {
   @Test
   public void addDup() throws InterruptedException {
     new Thread(new Runnable() { // Thread safety reviewed
+      @Override
       public void run() {
         registry.add(p1);
       }
     }).start();
     new Thread(new Runnable() { // Thread safety reviewed
+      @Override
       public void run() {
         registry.add(p2);
       }
@@ -90,10 +93,11 @@ public class RemoteProxySlowSetup {
       flag = true;
     }
 
-    public SlowRemoteSetup(RegistrationRequest req,Registry registry) {
+    public SlowRemoteSetup(RegistrationRequest req,GridRegistry registry) {
       super(req, registry);
     }
 
+    @Override
     public void beforeRegistration() {
       try {
         updateFlag();

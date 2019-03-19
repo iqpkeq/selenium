@@ -17,22 +17,16 @@
 
 package org.openqa.selenium;
 
-import static org.hamcrest.Matchers.instanceOf;
-import static org.junit.Assert.assertThat;
-import static org.openqa.selenium.testing.Driver.FIREFOX;
-import static org.openqa.selenium.testing.Driver.MARIONETTE;
-import static org.openqa.selenium.testing.Driver.PHANTOMJS;
-import static org.openqa.selenium.testing.Driver.SAFARI;
-import static org.openqa.selenium.testing.TestUtilities.catchThrowable;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.openqa.selenium.testing.drivers.Browser.FIREFOX;
+import static org.openqa.selenium.testing.drivers.Browser.MARIONETTE;
+import static org.openqa.selenium.testing.drivers.Browser.SAFARI;
 
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.openqa.selenium.testing.Ignore;
 import org.openqa.selenium.testing.JUnit4TestBase;
 import org.openqa.selenium.testing.NoDriverAfterTest;
 import org.openqa.selenium.testing.NotYetImplemented;
-import org.openqa.selenium.testing.SeleniumTestRunner;
-import org.openqa.selenium.testing.drivers.WebDriverBuilder;
 
 public class SessionHandlingTest extends JUnit4TestBase {
 
@@ -46,9 +40,9 @@ public class SessionHandlingTest extends JUnit4TestBase {
 
   @NoDriverAfterTest
   @Test
-  @Ignore(value = FIREFOX, issue = "https://github.com/SeleniumHQ/selenium/issues/3792")
-  @Ignore(PHANTOMJS)
+  @Ignore(value = FIREFOX)
   @NotYetImplemented(value = MARIONETTE, reason = "https://github.com/mozilla/geckodriver/issues/689")
+  @NotYetImplemented(SAFARI)
   public void callingQuitAfterClosingTheLastWindowIsANoOp() {
     driver.close();
     sleepTight(3000);
@@ -57,25 +51,25 @@ public class SessionHandlingTest extends JUnit4TestBase {
 
   @NoDriverAfterTest
   @Test
-  @Ignore(value = FIREFOX, issue = "3792")
-  @Ignore(value = PHANTOMJS, reason = "throws NoSuchWindowException")
-  @Ignore(value = SAFARI, reason = "throws NullPointerException")
-  @NotYetImplemented(value = MARIONETTE, reason = "https://github.com/mozilla/geckodriver/issues/689")
+  @Ignore(value = FIREFOX)
   public void callingAnyOperationAfterClosingTheLastWindowShouldThrowAnException() {
     driver.close();
     sleepTight(3000);
-    Throwable t = catchThrowable(driver::getCurrentUrl);
-    assertThat(t, instanceOf(NoSuchSessionException.class));
+    assertThatExceptionOfType(NoSuchSessionException.class).isThrownBy(driver::getCurrentUrl);
   }
 
   @NoDriverAfterTest
   @Test
-  @Ignore(value = SAFARI, reason = "Safari: throws UnreachableBrowserException")
   public void callingAnyOperationAfterQuitShouldThrowAnException() {
     driver.quit();
     sleepTight(3000);
-    Throwable t = catchThrowable(driver::getCurrentUrl);
-    assertThat(t, instanceOf(NoSuchSessionException.class));
+    assertThatExceptionOfType(NoSuchSessionException.class).isThrownBy(driver::getCurrentUrl);
+  }
+
+  @Test
+  public void shouldContinueAfterSleep() {
+    sleepTight(10000);
+    driver.getWindowHandle(); // should not throw
   }
 
   private void sleepTight(long duration) {

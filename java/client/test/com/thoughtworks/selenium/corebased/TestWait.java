@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 package com.thoughtworks.selenium.corebased;
 
 import com.thoughtworks.selenium.InternalSelenseTestBase;
@@ -24,7 +23,7 @@ import org.junit.Test;
 
 public class TestWait extends InternalSelenseTestBase {
   @Test
-  public void testWait() throws Exception {
+  public void testWait() {
     // Link click
     selenium.open("../tests/html/test_reload_onchange_page.html");
     selenium.click("theLink");

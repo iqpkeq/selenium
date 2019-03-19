@@ -23,6 +23,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.openqa.grid.internal.mock.GridHelper;
+import org.openqa.grid.internal.utils.configuration.GridHubConfiguration;
+import org.openqa.grid.web.Hub;
 import org.openqa.grid.web.servlet.handler.RequestHandler;
 import org.openqa.selenium.remote.CapabilityType;
 
@@ -33,7 +35,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 
 public class SmokeTest {
-  private Registry registry;
+  private GridRegistry registry;
 
   private Map<String, Object> ie = new HashMap<>();
   private Map<String, Object> ff = new HashMap<>();
@@ -47,7 +49,7 @@ public class SmokeTest {
    */
   @Before
   public void setup() throws Exception {
-    registry = Registry.newInstance();
+    registry = DefaultGridRegistry.newInstance(new Hub(new GridHubConfiguration()));
     ie.put(CapabilityType.APPLICATION_NAME, "IE");
     ff.put(CapabilityType.APPLICATION_NAME, "FF");
 
@@ -71,6 +73,7 @@ public class SmokeTest {
 
     for (int i = 0; i < MAX; i++) {
       new Thread(new Runnable() { // Thread safety reviewed
+        @Override
         public void run() {
           RequestHandler newSessionRequest = GridHelper.createNewSessionHandler(registry, ie);
           newSessionRequest.process();
@@ -83,6 +86,7 @@ public class SmokeTest {
 
     for (int i = 0; i < MAX; i++) {
       new Thread(new Runnable() {  // Thread safety reviewed
+        @Override
         public void run() {
           RequestHandler newSessionRequest =  GridHelper.createNewSessionHandler(registry, ff);
           newSessionRequest.process();

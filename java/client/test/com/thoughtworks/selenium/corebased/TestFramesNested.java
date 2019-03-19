@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 package com.thoughtworks.selenium.corebased;
 
 import com.thoughtworks.selenium.InternalSelenseTestBase;
@@ -24,7 +23,7 @@ import org.junit.Test;
 
 public class TestFramesNested extends InternalSelenseTestBase {
   @Test
-  public void testFramesNested() throws Exception {
+  public void testFramesNested() {
     selenium.open("../tests/html/NestedFrames.html");
     verifyEquals(selenium.getTitle(), "NestedFrames");
     verifyFalse(selenium.isTextPresent("This is a test"));

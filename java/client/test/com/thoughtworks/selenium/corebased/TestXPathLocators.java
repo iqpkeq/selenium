@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 package com.thoughtworks.selenium.corebased;
 
 import com.thoughtworks.selenium.InternalSelenseTestBase;
@@ -24,7 +23,7 @@ import org.junit.Test;
 
 public class TestXPathLocators extends InternalSelenseTestBase {
   @Test
-  public void testXPathLocators() throws Exception {
+  public void testXPathLocators() {
     selenium.open("../tests/html/test_locators.html");
     verifyEquals(selenium.getText("xpath=//a"), "this is the first element");
     verifyEquals(selenium.getText("xpath=//a[@class='a2']"), "this is the second element");

@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -27,34 +27,30 @@ module Selenium
       #
 
       class Driver < WebDriver::Driver
+        include DriverExtensions::HasNetworkConditions
+        include DriverExtensions::HasTouchScreen
         include DriverExtensions::HasWebStorage
+        include DriverExtensions::HasLocation
         include DriverExtensions::TakesScreenshot
+        include DriverExtensions::DownloadsFiles
 
         def initialize(opts = {})
           opts[:desired_capabilities] = create_capabilities(opts)
 
           unless opts.key?(:url)
             driver_path = opts.delete(:driver_path) || Chrome.driver_path
+            driver_opts = opts.delete(:driver_opts) || {}
             port = opts.delete(:port) || Service::DEFAULT_PORT
 
-            opts[:driver_opts] ||= {}
-            if opts.key? :service_log_path
-              WebDriver.logger.deprecate ':service_log_path', "driver_opts: {log_path: '#{opts[:service_log_path]}'}"
-              opts[:driver_opts][:log_path] = opts.delete :service_log_path
-            end
-
-            if opts.key? :service_args
-              WebDriver.logger.deprecate ':service_args', "driver_opts: {args: #{opts[:service_args]}}"
-              opts[:driver_opts][:args] = opts.delete(:service_args)
-            end
-
-            @service = Service.new(driver_path, port, opts.delete(:driver_opts))
+            @service = Service.new(driver_path, port, driver_opts)
             @service.start
             opts[:url] = @service.uri
           end
 
           listener = opts.delete(:listener)
           @bridge = Remote::Bridge.handshake(opts)
+          @bridge.extend Bridge
+
           super(@bridge, listener: listener)
         end
 
@@ -65,7 +61,11 @@ module Selenium
         def quit
           super
         ensure
-          @service.stop if @service
+          @service&.stop
+        end
+
+        def execute_cdp(cmd, **params)
+          @bridge.send_command(cmd: cmd, params: params)
         end
 
         private
@@ -74,10 +74,11 @@ module Selenium
           caps = opts.delete(:desired_capabilities) { Remote::Capabilities.chrome }
           options = opts.delete(:options) { Options.new }
 
-          args = opts.delete(:args)
+          args = opts.delete(:args) || opts.delete(:switches)
           if args
-            WebDriver.logger.deprecate ':args', 'Selenium::WebDriver::Chrome::Options#add_argument'
+            WebDriver.logger.deprecate ':args or :switches', 'Selenium::WebDriver::Chrome::Options#add_argument'
             raise ArgumentError, ':args must be an Array of Strings' unless args.is_a? Array
+
             args.each { |arg| options.add_argument(arg.to_s) }
           end
 
@@ -85,9 +86,7 @@ module Selenium
           if profile
             profile = profile.as_json
 
-            if options.args.none? { |arg| arg =~ /user-data-dir/ }
-              options.add_argument("--user-data-dir=#{profile[:directory]}")
-            end
+            options.add_argument("--user-data-dir=#{profile[:directory]}") if options.args.none? { |arg| arg =~ /user-data-dir/ }
 
             if profile[:extensions]
               WebDriver.logger.deprecate 'Using Selenium::WebDriver::Chrome::Profile#extensions',
@@ -110,7 +109,7 @@ module Selenium
           end
 
           options = options.as_json
-          caps[:chrome_options] = options unless options.empty?
+          caps.merge!(options) unless options[Options::KEY].empty?
 
           caps[:proxy] = opts.delete(:proxy) if opts.key?(:proxy)
           caps[:proxy] ||= opts.delete('proxy') if opts.key?('proxy')

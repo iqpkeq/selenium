@@ -22,8 +22,12 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 import org.openqa.grid.common.SeleniumProtocol;
+import org.openqa.grid.internal.utils.configuration.GridHubConfiguration;
+import org.openqa.grid.web.Hub;
 import org.openqa.selenium.remote.CapabilityType;
+import org.openqa.selenium.support.ui.TickingClock;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -32,7 +36,7 @@ public class TestSessionTest {
   @Test
   public void testIsOrphanedSe1() throws Exception {
 
-    Registry registry = Registry.newInstance();
+    GridRegistry registry = DefaultGridRegistry.newInstance(new Hub(new GridHubConfiguration()));
     try {
       Map<String, Object> ff = new HashMap<>();
       ff.put(CapabilityType.APPLICATION_NAME, "FF");
@@ -42,11 +46,11 @@ public class TestSessionTest {
 
       final HashMap<String, Object> capabilities = new HashMap<>();
       TestSlot testSlot = new TestSlot(p1, SeleniumProtocol.Selenium, "", capabilities);
-      final TestTimeSource timeSource = new TestTimeSource();
+      final TickingClock timeSource = new TickingClock();
       TestSession testSession = new TestSession(testSlot, capabilities, timeSource);
       testSession.setExternalKey(new ExternalSessionKey("testKey"));
       assertFalse(testSession.isOrphaned());
-      timeSource.ensureElapsed(TestSession.MAX_IDLE_TIME_BEFORE_CONSIDERED_ORPHANED);
+      timeSource.sleep(Duration.ofSeconds(TestSession.MAX_IDLE_TIME_BEFORE_CONSIDERED_ORPHANED));
       assertTrue(testSession.isOrphaned());
 
     } finally {
@@ -57,7 +61,7 @@ public class TestSessionTest {
   @Test
   public void testIsOrphanedWebDriver() throws Exception {
 
-    Registry registry = Registry.newInstance();
+    GridRegistry registry = DefaultGridRegistry.newInstance(new Hub(new GridHubConfiguration()));
     try {
       Map<String, Object> ff = new HashMap<>();
       ff.put(CapabilityType.APPLICATION_NAME, "FF");
@@ -68,29 +72,15 @@ public class TestSessionTest {
       final HashMap<String, Object> capabilities = new HashMap<>();
       TestSlot testSlot = new TestSlot(p1, SeleniumProtocol.WebDriver, "", capabilities
       );
-      final TestTimeSource timeSource = new TestTimeSource();
+      final TickingClock timeSource = new TickingClock();
       TestSession testSession = new TestSession(testSlot, capabilities, timeSource);
       testSession.setExternalKey(new ExternalSessionKey("testKey"));
       assertFalse(testSession.isOrphaned());
-      timeSource.ensureElapsed(TestSession.MAX_IDLE_TIME_BEFORE_CONSIDERED_ORPHANED);
+      timeSource.sleep(Duration.ofMillis(TestSession.MAX_IDLE_TIME_BEFORE_CONSIDERED_ORPHANED));
       assertFalse(testSession.isOrphaned());
 
     } finally {
       registry.stop();
-    }
-  }
-
-
-  public static class TestTimeSource implements TimeSource {
-
-    private long time = 17;
-
-    public long currentTimeInMillis() {
-      return time;
-    }
-
-    public void ensureElapsed(long requiredElapsed) {
-      time += (requiredElapsed + 1);
     }
   }
 }

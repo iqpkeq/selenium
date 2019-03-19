@@ -62,6 +62,8 @@ public interface WebElement extends SearchContext, TakesScreenshot {
    * Use this method to simulate typing into an element, which may set its value.
    *
    * @param keysToSend character sequence to send to the element
+   *
+   * @throws IllegalArgumentException if keysToSend is null
    */
   void sendKeys(CharSequence... keysToSend);
 
@@ -125,6 +127,8 @@ public interface WebElement extends SearchContext, TakesScreenshot {
   /**
    * Determine whether or not this element is selected or not. This operation only applies to input
    * elements such as checkboxes, options in a select and radio buttons.
+   * For more information on which elements this method supports,
+   * refer to the <a href="https://w3c.github.io/webdriver/webdriver-spec.html#is-element-selected">specification</a>.
    *
    * @return True if the element is currently selected or checked, false otherwise.
    */
@@ -139,10 +143,11 @@ public interface WebElement extends SearchContext, TakesScreenshot {
   boolean isEnabled();
 
   /**
-   * Get the visible (i.e. not hidden by CSS) innerText of this element, including sub-elements,
-   * without any leading or trailing whitespace.
+   * Get the visible (i.e. not hidden by CSS) text of this element, including sub-elements.
    *
-   * @return The innerText of this element.
+   * @see <a href="https://w3c.github.io/webdriver/#get-element-text">"Get Element Text" section
+   * in W3C WebDriver Specification</a>
+   * @return The visible text of this element.
    */
   String getText();
 
@@ -160,6 +165,7 @@ public interface WebElement extends SearchContext, TakesScreenshot {
    * @see org.openqa.selenium.By
    * @see org.openqa.selenium.WebDriver.Timeouts
    */
+  @Override
   List<WebElement> findElements(By by);
 
   /**
@@ -178,6 +184,7 @@ public interface WebElement extends SearchContext, TakesScreenshot {
    * @see org.openqa.selenium.By
    * @see org.openqa.selenium.WebDriver.Timeouts
    */
+  @Override
   WebElement findElement(By by);
 
   /**

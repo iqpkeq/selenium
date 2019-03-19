@@ -1,4 +1,4 @@
-﻿// <copyright file="ChromePerformanceLoggingPreferences.cs" company="WebDriver Committers">
+// <copyright file="ChromePerformanceLoggingPreferences.cs" company="WebDriver Committers">
 // Licensed to the Software Freedom Conservancy (SFC) under one
 // or more contributor license agreements. See the NOTICE file
 // distributed with this work for additional information
@@ -29,7 +29,6 @@ namespace OpenQA.Selenium.Chrome
     {
         private bool isCollectingNetworkEvents = true;
         private bool isCollectingPageEvents = true;
-        private bool isCollectingTimelineEvents = true;
         private TimeSpan bufferUsageReportingInterval = TimeSpan.FromMilliseconds(1000);
         private List<string> tracingCategories = new List<string>();
 
@@ -51,17 +50,6 @@ namespace OpenQA.Selenium.Chrome
         {
             get { return this.isCollectingPageEvents; }
             set { this.isCollectingPageEvents = value; }
-        }
-
-        /// <summary>
-        /// Gets or sets a value indicating whether Chrome will collect events from the Timeline domain.
-        /// Defaults to <see langword="true"/>, but is set to <see langword="false"/> when tracing
-        /// is enabled by adding one or more tracing categories.
-        /// </summary>
-        public bool IsCollectingTimelineEvents
-        {
-            get { return this.isCollectingTimelineEvents; }
-            set { this.isCollectingTimelineEvents = value; }
         }
 
         /// <summary>
@@ -139,7 +127,6 @@ namespace OpenQA.Selenium.Chrome
             }
 
             // Adding a tracing category automatically turns timeline events off.
-            this.isCollectingTimelineEvents = false;
             this.tracingCategories.AddRange(categoriesToAdd);
         }
     }

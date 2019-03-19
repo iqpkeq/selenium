@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -26,8 +26,8 @@ module Selenium
 
       class Service < WebDriver::Service
         DEFAULT_PORT = 17556
-        @executable = 'MicrosoftWebDriver'.freeze
-        @missing_text = <<-ERROR.gsub(/\n +| {2,}/, ' ').freeze
+        EXECUTABLE = 'MicrosoftWebDriver'
+        MISSING_TEXT = <<~ERROR
           Unable to find MicrosoftWebDriver. Please download the server from
           https://www.microsoft.com/en-us/download/details.aspx?id=48212 and place it somewhere on your PATH.
           More info at https://github.com/SeleniumHQ/selenium/wiki/MicrosoftWebDriver.
@@ -36,11 +36,7 @@ module Selenium
         private
 
         def start_process
-          server_command = [@executable_path, "--port=#{@port}", *@extra_args]
-          @process = ChildProcess.build(*server_command)
-          WebDriver.logger.debug("Executing Process #{server_command}")
-
-          @process.io.stdout = @process.io.stderr = WebDriver.logger.io
+          @process = build_process(@executable_path, "--port=#{@port}", *@extra_args)
           @process.start
         end
 
@@ -50,9 +46,10 @@ module Selenium
 
         def extract_service_args(driver_opts)
           driver_args = super
-          driver_args << "–host=#{driver_opts[:host]}" if driver_opts.key? :host
-          driver_args << "–package=#{driver_opts[:package]}" if driver_opts.key? :package
-          driver_args << "-verbose" if driver_opts[:verbose] == true
+          driver_args << "--host=#{driver_opts[:host]}" if driver_opts.key? :host
+          driver_args << "--package=#{driver_opts[:package]}" if driver_opts.key? :package
+          driver_args << "--silent" if driver_opts[:silent] == true
+          driver_args << "--verbose" if driver_opts[:verbose] == true
           driver_args
         end
       end # Service

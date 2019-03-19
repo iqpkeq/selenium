@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Licensed to the Software Freedom Conservancy (SFC) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -31,7 +31,9 @@ require 'selenium/webdriver/firefox/profile'
 require 'selenium/webdriver/firefox/launcher'
 require 'selenium/webdriver/firefox/legacy/driver'
 
+require 'selenium/webdriver/firefox/marionette/bridge'
 require 'selenium/webdriver/firefox/marionette/driver'
+require 'selenium/webdriver/firefox/options'
 require 'selenium/webdriver/firefox/service'
 
 module Selenium

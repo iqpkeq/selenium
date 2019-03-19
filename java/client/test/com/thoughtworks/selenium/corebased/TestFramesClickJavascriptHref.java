@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 package com.thoughtworks.selenium.corebased;
 
 import com.thoughtworks.selenium.InternalSelenseTestBase;
@@ -24,7 +23,7 @@ import org.junit.Test;
 
 public class TestFramesClickJavascriptHref extends InternalSelenseTestBase {
   @Test
-  public void testFramesClickJavascriptHref() throws Exception {
+  public void testFramesClickJavascriptHref() {
     selenium.open("../tests/html/Frames.html");
     selenium.selectFrame("mainFrame");
     selenium.open("../tests/html/test_click_javascript_page.html");

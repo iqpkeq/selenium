@@ -25,13 +25,16 @@ import static org.junit.Assert.assertNull;
 import org.junit.Before;
 import org.junit.Test;
 import org.openqa.grid.common.RegistrationRequest;
-import org.openqa.grid.internal.DetachedRemoteProxy;
-import org.openqa.grid.internal.Registry;
+import org.openqa.grid.internal.BaseRemoteProxy;
+import org.openqa.grid.internal.DefaultGridRegistry;
+import org.openqa.grid.internal.GridRegistry;
 import org.openqa.grid.internal.SessionTerminationReason;
 import org.openqa.grid.internal.TestSession;
 import org.openqa.grid.internal.listeners.TestSessionListener;
 import org.openqa.grid.internal.listeners.TimeoutListener;
 import org.openqa.grid.internal.mock.GridHelper;
+import org.openqa.grid.internal.utils.configuration.GridHubConfiguration;
+import org.openqa.grid.web.Hub;
 import org.openqa.grid.web.servlet.handler.RequestHandler;
 import org.openqa.selenium.remote.CapabilityType;
 import org.openqa.selenium.remote.DesiredCapabilities;
@@ -53,17 +56,19 @@ public class SessionListenerTest {
     req.getConfiguration().capabilities.add(new DesiredCapabilities(app1));
   }
 
-  private static class MyRemoteProxy extends DetachedRemoteProxy implements TestSessionListener {
+  private static class MyRemoteProxy extends BaseRemoteProxy implements TestSessionListener {
 
-    public MyRemoteProxy(RegistrationRequest request, Registry registry) {
+    public MyRemoteProxy(RegistrationRequest request, GridRegistry registry) {
       super(request, registry);
     }
 
+    @Override
     public void afterSession(TestSession session) {
       session.put("FLAG", false);
 
     }
 
+    @Override
     public void beforeSession(TestSession session) {
       session.put("FLAG", true);
     }
@@ -71,7 +76,7 @@ public class SessionListenerTest {
 
   @Test
   public void beforeAfterRan() {
-    Registry registry = Registry.newInstance();
+    GridRegistry registry = DefaultGridRegistry.newInstance(new Hub(new GridHubConfiguration()));
     registry.add(new MyRemoteProxy(req, registry));
 
     RequestHandler req = GridHelper.createNewSessionHandler(registry, app1);
@@ -93,16 +98,18 @@ public class SessionListenerTest {
    *
    * @author Francois Reynaud
    */
-  static class MyBuggyBeforeRemoteProxy extends DetachedRemoteProxy implements TestSessionListener {
+  static class MyBuggyBeforeRemoteProxy extends BaseRemoteProxy implements TestSessionListener {
 
     private boolean firstCall = true;
 
-    public MyBuggyBeforeRemoteProxy(RegistrationRequest request, Registry registry) {
+    public MyBuggyBeforeRemoteProxy(RegistrationRequest request, GridRegistry registry) {
       super(request, registry);
     }
 
+    @Override
     public void afterSession(TestSession session) {}
 
+    @Override
     public void beforeSession(TestSession session) {
       if (firstCall) {
         firstCall = false;
@@ -116,7 +123,7 @@ public class SessionListenerTest {
    */
   @Test(timeout = 500000)
   public void buggyBefore() throws InterruptedException {
-    Registry registry = Registry.newInstance();
+    GridRegistry registry = DefaultGridRegistry.newInstance(new Hub(new GridHubConfiguration()));
     registry.add(new MyBuggyBeforeRemoteProxy(req, registry));
 
     RequestHandler req = GridHelper.createNewSessionHandler(registry, app1);
@@ -149,16 +156,18 @@ public class SessionListenerTest {
    *
    * @author Francois Reynaud
    */
-  static class MyBuggyAfterRemoteProxy extends DetachedRemoteProxy implements TestSessionListener {
+  static class MyBuggyAfterRemoteProxy extends BaseRemoteProxy implements TestSessionListener {
 
-    public MyBuggyAfterRemoteProxy(RegistrationRequest request, Registry registry) {
+    public MyBuggyAfterRemoteProxy(RegistrationRequest request, GridRegistry registry) {
       super(request, registry);
     }
 
+    @Override
     public void afterSession(TestSession session) {
       throw new NullPointerException();
     }
 
+    @Override
     public void beforeSession(TestSession session) {}
   }
 
@@ -169,7 +178,7 @@ public class SessionListenerTest {
    */
   @Test(timeout = 1000)
   public void buggyAfter() throws InterruptedException {
-    Registry registry = Registry.newInstance();
+    GridRegistry registry = DefaultGridRegistry.newInstance(new Hub(new GridHubConfiguration()));
     try {
       registry.add(new MyBuggyAfterRemoteProxy(req, registry));
 
@@ -187,13 +196,11 @@ public class SessionListenerTest {
 
       final RequestHandler req2 = GridHelper.createNewSessionHandler(registry, app1);
 
-      new Thread(new Runnable() { // Thread safety reviewed
-
-            public void run() {
-              req2.process();
-              processed = true;
-            }
-          }).start();
+      // Thread safety reviewed
+      new Thread(() -> {
+        req2.process();
+        processed = true;
+      }).start();
 
       Thread.sleep(100);
       assertFalse(processed);
@@ -202,15 +209,16 @@ public class SessionListenerTest {
     }
   }
 
-  class SlowAfterSession extends DetachedRemoteProxy implements TestSessionListener, TimeoutListener {
+  class SlowAfterSession extends BaseRemoteProxy implements TestSessionListener, TimeoutListener {
 
     private Lock lock = new ReentrantLock();
     private boolean firstTime = true;
 
-    public SlowAfterSession(RegistrationRequest request, Registry registry) {
+    public SlowAfterSession(RegistrationRequest request, GridRegistry registry) {
       super(request, registry);
     }
 
+    @Override
     public void afterSession(TestSession session) {
       session.put("after", true);
       try {
@@ -232,8 +240,10 @@ public class SessionListenerTest {
       }
     }
 
+    @Override
     public void beforeSession(TestSession session) {}
 
+    @Override
     public void beforeRelease(TestSession session) {
       getRegistry().terminate(session, SessionTerminationReason.CLIENT_STOPPED_SESSION);
     }
@@ -253,7 +263,7 @@ public class SessionListenerTest {
     req.getConfiguration().maxSession = 2;
     req.getConfiguration().capabilities.add(new DesiredCapabilities(cap));
 
-    Registry registry = Registry.newInstance();
+    GridRegistry registry = DefaultGridRegistry.newInstance(new Hub(new GridHubConfiguration()));
     try {
       final SlowAfterSession proxy = new SlowAfterSession(req, registry);
       proxy.setupTimeoutListener();

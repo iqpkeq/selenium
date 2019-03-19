@@ -27,6 +27,7 @@ goog.require('goog.dom');
  * element and the target locator meets CSS requirements.
  * @param {!(Document|Element)} root The document or element to test for CSS
  *     selector support.
+ * @param {string} target The id to search for.
  * @return {boolean} Whether or not the root supports query selector APIs.
  * @see http://www.w3.org/TR/selectors-api/
  * @private
@@ -53,14 +54,15 @@ bot.locators.id.single = function(target, root) {
   }
 
   // On IE getting by ID returns the first match by id _or_ name.
-  if (bot.dom.getAttribute(e, 'id') == target && goog.dom.contains(root, e)) {
+  if (bot.dom.getAttribute(e, 'id') == target &&
+      root != e && goog.dom.contains(root, e)) {
     return e;
   }
 
   var elements = dom.getElementsByTagNameAndClass('*');
   var element = goog.array.find(elements, function(element) {
     return bot.dom.getAttribute(element, 'id') == target &&
-        goog.dom.contains(root, element);
+        root != element && goog.dom.contains(root, element);
   });
   return /**@type{Element}*/ (element);
 };

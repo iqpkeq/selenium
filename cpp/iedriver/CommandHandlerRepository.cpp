@@ -25,6 +25,7 @@
 #include "CommandHandlers/ClickElementCommandHandler.h"
 #include "CommandHandlers/ClearElementCommandHandler.h"
 #include "CommandHandlers/CloseWindowCommandHandler.h"
+#include "CommandHandlers/CreateNewWindowCommandHandler.h"
 #include "CommandHandlers/DeleteAllCookiesCommandHandler.h"
 #include "CommandHandlers/DeleteCookieCommandHandler.h"
 #include "CommandHandlers/DismissAlertCommandHandler.h"
@@ -35,6 +36,7 @@
 #include "CommandHandlers/FindChildElementsCommandHandler.h"
 #include "CommandHandlers/FindElementCommandHandler.h"
 #include "CommandHandlers/FindElementsCommandHandler.h"
+#include "CommandHandlers/FullScreenWindowCommandHandler.h"
 #include "CommandHandlers/GetActiveElementCommandHandler.h"
 #include "CommandHandlers/GetAlertTextCommandHandler.h"
 #include "CommandHandlers/GetAllCookiesCommandHandler.h"
@@ -42,10 +44,12 @@
 #include "CommandHandlers/GetCurrentUrlCommandHandler.h"
 #include "CommandHandlers/GetCurrentWindowHandleCommandHandler.h"
 #include "CommandHandlers/GetElementAttributeCommandHandler.h"
+#include "CommandHandlers/GetElementPropertyCommandHandler.h"
 #include "CommandHandlers/GetElementRectCommandHandler.h"
 #include "CommandHandlers/GetElementTagNameCommandHandler.h"
 #include "CommandHandlers/GetElementTextCommandHandler.h"
 #include "CommandHandlers/GetElementValueOfCssPropertyCommandHandler.h"
+#include "CommandHandlers/GetNamedCookieCommandHandler.h"
 #include "CommandHandlers/GetSessionCapabilitiesCommandHandler.h"
 #include "CommandHandlers/GetPageSourceCommandHandler.h"
 #include "CommandHandlers/GetTimeoutsCommandHandler.h"
@@ -57,12 +61,14 @@
 #include "CommandHandlers/IsElementDisplayedCommandHandler.h"
 #include "CommandHandlers/IsElementEnabledCommandHandler.h"
 #include "CommandHandlers/IsElementSelectedCommandHandler.h"
+#include "CommandHandlers/MinimizeWindowCommandHandler.h"
 #include "CommandHandlers/MaximizeWindowCommandHandler.h"
 #include "CommandHandlers/NewSessionCommandHandler.h"
 #include "CommandHandlers/QuitCommandHandler.h"
 #include "CommandHandlers/RefreshCommandHandler.h"
 #include "CommandHandlers/ReleaseActionsCommandHandler.h"
 #include "CommandHandlers/ScreenshotCommandHandler.h"
+#include "CommandHandlers/ScreenshotElementCommandHandler.h"
 #include "CommandHandlers/SendKeysCommandHandler.h"
 #include "CommandHandlers/SendKeysToAlertCommandHandler.h"
 #include "CommandHandlers/SetAlertCredentialsCommandHandler.h"
@@ -103,7 +109,6 @@ CommandHandlerHandle CommandHandlerRepository::GetCommandHandler(const std::stri
 void CommandHandlerRepository::PopulateCommandHandlers() {
   LOG(TRACE) << "Entering CommandHandlerRepository::PopulateCommandHandlers";
 
-  // TODO: MinimizeWindow, FullscreenWindow, GetElementProperty, ElementScreenshot
   this->command_handlers_[webdriver::CommandType::NoCommand] = CommandHandlerHandle(new IECommandHandler);
   this->command_handlers_[webdriver::CommandType::NewSession] = CommandHandlerHandle(new NewSessionCommandHandler);
   this->command_handlers_[webdriver::CommandType::Quit] = CommandHandlerHandle(new QuitCommandHandler);
@@ -119,11 +124,14 @@ void CommandHandlerRepository::PopulateCommandHandlers() {
   this->command_handlers_[webdriver::CommandType::CloseWindow] = CommandHandlerHandle(new CloseWindowCommandHandler);
   this->command_handlers_[webdriver::CommandType::SwitchToWindow] = CommandHandlerHandle(new SwitchToWindowCommandHandler);
   this->command_handlers_[webdriver::CommandType::GetWindowHandles] = CommandHandlerHandle(new GetAllWindowHandlesCommandHandler);
+  this->command_handlers_[webdriver::CommandType::NewWindow] = CommandHandlerHandle(new CreateNewWindowCommandHandler);
   this->command_handlers_[webdriver::CommandType::SwitchToFrame] = CommandHandlerHandle(new SwitchToFrameCommandHandler);
   this->command_handlers_[webdriver::CommandType::SwitchToParentFrame] = CommandHandlerHandle(new SwitchToParentFrameCommandHandler);
   this->command_handlers_[webdriver::CommandType::GetWindowRect] = CommandHandlerHandle(new GetWindowRectCommandHandler);
   this->command_handlers_[webdriver::CommandType::SetWindowRect] = CommandHandlerHandle(new SetWindowRectCommandHandler);
   this->command_handlers_[webdriver::CommandType::MaximizeWindow] = CommandHandlerHandle(new MaximizeWindowCommandHandler);
+  this->command_handlers_[webdriver::CommandType::MinimizeWindow] = CommandHandlerHandle(new MinimizeWindowCommandHandler);
+  this->command_handlers_[webdriver::CommandType::FullscreenWindow] = CommandHandlerHandle(new FullScreenWindowCommandHandler);
   this->command_handlers_[webdriver::CommandType::GetActiveElement] = CommandHandlerHandle(new GetActiveElementCommandHandler);
   this->command_handlers_[webdriver::CommandType::FindElement] = CommandHandlerHandle(new FindElementCommandHandler);
   this->command_handlers_[webdriver::CommandType::FindElements] = CommandHandlerHandle(new FindElementsCommandHandler);
@@ -131,6 +139,7 @@ void CommandHandlerRepository::PopulateCommandHandlers() {
   this->command_handlers_[webdriver::CommandType::FindChildElements] = CommandHandlerHandle(new FindChildElementsCommandHandler);
   this->command_handlers_[webdriver::CommandType::IsElementSelected] = CommandHandlerHandle(new IsElementSelectedCommandHandler);
   this->command_handlers_[webdriver::CommandType::GetElementAttribute] = CommandHandlerHandle(new GetElementAttributeCommandHandler);
+  this->command_handlers_[webdriver::CommandType::GetElementProperty] = CommandHandlerHandle(new GetElementPropertyCommandHandler);
   this->command_handlers_[webdriver::CommandType::GetElementValueOfCssProperty] = CommandHandlerHandle(new GetElementValueOfCssPropertyCommandHandler);
   this->command_handlers_[webdriver::CommandType::GetElementText] = CommandHandlerHandle(new GetElementTextCommandHandler);
   this->command_handlers_[webdriver::CommandType::GetElementTagName] = CommandHandlerHandle(new GetElementTagNameCommandHandler);
@@ -143,6 +152,7 @@ void CommandHandlerRepository::PopulateCommandHandlers() {
   this->command_handlers_[webdriver::CommandType::ExecuteScript] = CommandHandlerHandle(new ExecuteScriptCommandHandler);
   this->command_handlers_[webdriver::CommandType::ExecuteAsyncScript] = CommandHandlerHandle(new ExecuteAsyncScriptCommandHandler);
   this->command_handlers_[webdriver::CommandType::GetAllCookies] = CommandHandlerHandle(new GetAllCookiesCommandHandler);
+  this->command_handlers_[webdriver::CommandType::GetNamedCookie] = CommandHandlerHandle(new GetNamedCookieCommandHandler);
   this->command_handlers_[webdriver::CommandType::AddCookie] = CommandHandlerHandle(new AddCookieCommandHandler);
   this->command_handlers_[webdriver::CommandType::DeleteNamedCookie] = CommandHandlerHandle(new DeleteCookieCommandHandler);
   this->command_handlers_[webdriver::CommandType::DeleteAllCookies] = CommandHandlerHandle(new DeleteAllCookiesCommandHandler);
@@ -153,6 +163,7 @@ void CommandHandlerRepository::PopulateCommandHandlers() {
   this->command_handlers_[webdriver::CommandType::GetAlertText] = CommandHandlerHandle(new GetAlertTextCommandHandler);
   this->command_handlers_[webdriver::CommandType::SendKeysToAlert] = CommandHandlerHandle(new SendKeysToAlertCommandHandler);
   this->command_handlers_[webdriver::CommandType::Screenshot] = CommandHandlerHandle(new ScreenshotCommandHandler);
+  this->command_handlers_[webdriver::CommandType::ElementScreenshot] = CommandHandlerHandle(new ScreenshotElementCommandHandler);
 
   // Additional commands required to be supported, but not defined
   // in the specification.
